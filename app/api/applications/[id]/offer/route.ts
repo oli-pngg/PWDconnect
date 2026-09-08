@@ -1,0 +1,48 @@
+import { getApplicationAccess } from '@/lib/application-access';
+import { getAuthenticatedContext } from '@/lib/auth';
+import { cleanText, jsonError, jsonOk } from '@/lib/http';
+import { createSupabaseAdminClient } from '@/lib/supabase/admin';
+
+function validUuid(value: string) {
+  return /^[0-9a-f-]{36}$/i.test(value);
+}
+
+function validDate(value: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+  try {
+    const { user } = await getAuthenticatedContext();
+    if (!user) return jsonError('Authentication required.', 401);
+    const { id } = await context.params;
+    if (!validUuid(id)) return jsonError('Invalid application.', 400);
+    const access = await getApplicationAccess(user.id, id);
+    if (!access) return jsonError('Application not found.', 404);
+    if (access.participantRole !== 'employer') return jsonError('Only the employer can send an offer.', 403);
+    if (access.applicationStatus === 'rejected' || access.applicationStatus === 'hired') return jsonError('This application is no longer available for a new offer.', 409);
+
+    const body = await request.json() as { message?: unknown; compensation?: unknown; startDate?: unknown };
+    const message = cleanText(body.message, 4000);
+    const compensation = cleanText(body.compensation, 200) || null;
+    const startDate = cleanText(body.startDate, 10) || null;
+    if (!message) return jsonError('Add a message to the offer.');
+    if (startDate && !validDate(startDate)) return jsonError('Enter a valid start date.');
+
+    const admin = createSupabaseAdminClient();
+    const { data: existing } = await admin.from('job_offers').select('id, status').eq('application_id', id).maybeSingle();
+    if (existing) return jsonError('An offer already exists for this application.', 409);
+    const { data, error } = await admin
+      .from('job_offers')
+      .insert({ application_id: id, job_id: access.jobId, employer_id: access.employerId, candidate_id: access.candidateId, message, compensation, start_date: startDate } as never)
+      .select('id, application_id, job_id, employer_id, candidate_id, message, compensation, start_date, status, created_at, responded_at')
+      .single();
+    if (error) {
+      if (error.code === '23505') return jsonError('An offer already exists for this application.', 409);
+      return jsonError('Unable to send the job offer.', 500);
+    }
+    return jsonOk({ offer: data }, { status: 201 });
+  } catch {
+    return jsonError('Unable to send the job offer.', 500);
+  }
+}

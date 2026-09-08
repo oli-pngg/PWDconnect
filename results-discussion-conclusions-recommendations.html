@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Results and Discussion - PWD Connect</title>
+  <style>
+    @page { size: A4; margin: 25mm 22mm 23mm 25mm; }
+    :root { --ink: #202020; --muted: #555; --line: #777; }
+    * { box-sizing: border-box; }
+    body {
+      color: var(--ink);
+      background: #fff;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 12pt;
+      line-height: 1.65;
+      margin: 0 auto;
+      max-width: 820px;
+    }
+    h1, h2, h3, h4 { font-family: Arial, Helvetica, sans-serif; color: #111; }
+    h1 { font-size: 18pt; letter-spacing: .04em; text-align: center; margin: 0 0 24px; }
+    h2 { font-size: 15pt; margin: 30px 0 12px; border-bottom: 1px solid #333; padding-bottom: 4px; }
+    h3 { font-size: 13pt; margin: 24px 0 8px; }
+    h4 { font-size: 12pt; margin: 18px 0 6px; }
+    p { text-align: justify; margin: 0 0 12px; }
+    .title-page { min-height: 245mm; display: flex; flex-direction: column; justify-content: center; text-align: center; page-break-after: always; }
+    .title-page h1 { font-size: 21pt; line-height: 1.35; max-width: 650px; margin: 0 auto 28px; }
+    .title-page .subtitle { font-family: Arial, Helvetica, sans-serif; font-size: 14pt; font-weight: bold; margin-bottom: 40px; }
+    .title-page .meta { line-height: 1.9; }
+    .chapter { page-break-before: always; }
+    .chapter h1 { margin-top: 8px; }
+    .note { border-left: 4px solid #555; background: #f3f3f3; padding: 12px 15px; margin: 16px 0 22px; font-size: 10.5pt; line-height: 1.5; }
+    .objective { font-weight: bold; margin: 12px 0 14px; }
+    .conclusion { border-left: 4px solid #333; padding-left: 14px; margin: 12px 0 20px; }
+    table { width: 100%; border-collapse: collapse; margin: 13px 0 22px; font-size: 10.5pt; line-height: 1.4; page-break-inside: avoid; }
+    th, td { border: 1px solid #555; padding: 8px 9px; vertical-align: top; }
+    th { background: #eaeaea; font-family: Arial, Helvetica, sans-serif; text-align: left; }
+    thead { display: table-header-group; }
+    tr { page-break-inside: avoid; }
+    ol { margin: 7px 0 16px 27px; padding: 0; }
+    li { margin: 0 0 8px; padding-left: 3px; }
+    .small { font-size: 10.5pt; color: var(--muted); }
+    .footer-note { margin-top: 30px; border-top: 1px solid #aaa; padding-top: 8px; color: #555; font-size: 9pt; }
+    @media print {
+      body { max-width: none; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+  <section class="title-page">
+    <div class="subtitle">ACCESSIBLE WEB-BASED JOB PAIRING PLATFORM</div>
+    <h1>Results and Discussion, Conclusions, and Recommendations</h1>
+    <div class="meta">
+      <div>For the study entitled</div>
+      <div><strong>Accessible Web-Based Job Pairing Platform for Persons with Visual, Hearing, and Speech Disabilities Using Automated Skill-Based Matching Algorithm</strong></div>
+      <br>
+      <div>Prepared by:</div>
+      <div>Oli, John Paul N.</div>
+      <div>Olidana, John Lawrence P.</div>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <h1>CHAPTER 4<br>RESULTS AND DISCUSSION</h1>
+    <div class="note"><strong>Basis of interpretation.</strong> The findings in this document are based on the developed prototype, system architecture, platform screenshots, and documented system features. The available materials do not include respondent counts, ISO/IEC 25010 mean scores, response-time measurements, or algorithm accuracy results. Therefore, no numerical results are fabricated. The findings below describe the implemented features and identify results that still require formal evaluation.</div>
+
+    <h2>Objective 1</h2>
+    <p class="objective">To design and develop a web-based platform with a skill-based matching algorithm and integrated skills assessment that ensures accessibility, usability, and inclusivity for persons with disabilities.</p>
+
+    <h3>Findings and Results</h3>
+    <p>The developed prototype contains the primary features required for an accessible job pairing platform. These features are summarized below.</p>
+    <table>
+      <thead><tr><th>Platform Area</th><th>Observed Result</th></tr></thead>
+      <tbody>
+        <tr><td>User access</td><td>Sign-in and account creation pages were developed.</td></tr>
+        <tr><td>User classification</td><td>Users can select between “Find work” and “Hire inclusively.”</td></tr>
+        <tr><td>Profile creation</td><td>Job seekers can enter their name, email address, password, skills, and other profile information.</td></tr>
+        <tr><td>Accessibility toolbar</td><td>The interface includes language selection, accessibility settings, read-page, pause, and stop controls.</td></tr>
+        <tr><td>Visual accessibility</td><td>Options include high contrast, larger text, reduced motion, and emphasized visual alerts.</td></tr>
+        <tr><td>Hearing accessibility</td><td>The system provides text-based reminders and does not rely only on audio instructions.</td></tr>
+        <tr><td>Keyboard and voice support</td><td>The prototype includes keyboard navigation guidance and an option to fill out forms by voice.</td></tr>
+        <tr><td>Password support</td><td>Users can show or hide their password through an eye icon, and password requirements are displayed.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Discussion</h3>
+    <p>The findings show that accessibility was considered as part of the main design rather than as an additional feature. The language selector and accessibility panel allow users to adjust the interface according to their needs. The presence of high contrast, larger text, reduced motion, and visual alerts is particularly useful for users with visual or cognitive difficulties.</p>
+    <p>The inclusion of read-page, pause, and stop controls also supports users who benefit from text-to-speech assistance. The voice form option can help users who experience difficulty typing. At the same time, the platform still provides text-based alternatives, which is important for users with hearing and speech disabilities.</p>
+    <p>The account-type selection supports the two main users of the system: PWD job seekers and employers. This allows the platform to provide different functions based on the user’s role. The proposed architecture further connects user registration, profile creation, assessment, job posting, matching, and feedback into one system.</p>
+    <p>However, the screenshots show that the accessibility panel may require additional responsive design improvements. In some views, the panel has a horizontal scrollbar and parts of the content appear clipped. This may create difficulty for users accessing the platform through small screens or keyboard navigation. The prototype demonstrates important accessibility features, but complete accessibility can only be confirmed through actual WCAG testing and user testing with persons with disabilities.</p>
+
+    <h3>Conclusion for Objective 1</h3>
+    <div class="conclusion"><p>The first objective was substantially achieved at the prototype development level. The platform includes accessible registration, profile creation, language support, visual adjustments, text-based communication, voice input, and separate user roles. These features provide a suitable foundation for inclusive job searching and recruitment. Further testing and interface refinement are needed before claiming full accessibility compliance and independent usability for all target users.</p></div>
+
+    <h2>Objective 2</h2>
+    <p class="objective">To integrate a skill-based matching algorithm that objectively evaluates the competencies of PWD job seekers through accessible test formats to enable accurate and fair job matching.</p>
+
+    <h3>Findings and Results</h3>
+    <p>The proposed system integrates the skills assessment and job-matching processes. The documented system flow indicates that:</p>
+    <ol>
+      <li>PWD job seekers complete an accessible skills assessment.</li>
+      <li>The assessment produces competency indicators and verified skill information.</li>
+      <li>The user’s skills are compared with the skills required in employer job postings.</li>
+      <li>The algorithm calculates a fit score for each candidate-job pair.</li>
+      <li>Jobs and candidates are ranked according to their level of skill alignment.</li>
+      <li>Location and work preferences may be used as secondary matching criteria.</li>
+      <li>Personal disability details are temporarily hidden during initial matching through blind matching logic.</li>
+      <li>The results module presents recommended jobs, candidate shortlists, fit scores, and reasons for recommendations.</li>
+    </ol>
+    <p>The assessment module is designed to include adjustable timers, high-contrast options, keyboard support, and ARIA-based accessibility support. These features aim to ensure that the assessment measures the user’s ability rather than the effects of an inaccessible interface.</p>
+
+    <h3>Discussion</h3>
+    <p>The integration of the skills assessment with the matching algorithm supports a skills-first recruitment process. Instead of relying only on educational background, resumes, or disability-related assumptions, the system considers the demonstrated abilities of the job seeker. This is appropriate for PWD users who may possess relevant skills but have limited formal work experience or nontraditional educational backgrounds.</p>
+    <p>The use of fit scores also makes the matching process more systematic. A job seeker can receive recommendations based on the relationship between verified skills and job requirements. Employers can view candidates whose competencies are more closely related to the vacancy, which can reduce manual searching during the initial recruitment stage.</p>
+    <p>The blind matching feature is another important finding. By hiding disability-related details during initial screening, the system attempts to reduce bias and encourages employers to focus first on skills and qualifications. Blind matching should not prevent employers from learning about reasonable accommodations when that information is necessary during later recruitment stages.</p>
+    <p>The accessible assessment design is important because an assessment cannot be considered objective if the test itself creates barriers. Users who need additional time, keyboard navigation, text instructions, captions, or screen-reader support should be able to use these accommodations without being unfairly penalized.</p>
+    <p>The available screenshots primarily show the account and accessibility interfaces. They do not show actual assessment questions, assessment scores, job recommendations, or matching outputs. Therefore, the integration of the algorithm is supported by the system architecture and documented design, but its accuracy has not yet been demonstrated through numerical testing. Precision, recall, F1-score, expert comparison, and actual hiring outcomes should be measured in a formal evaluation.</p>
+
+    <h3>Conclusion for Objective 2</h3>
+    <div class="conclusion"><p>The second objective was achieved in terms of system design and planned integration. The platform connects accessible skills assessment results with skill-based job recommendations and applies fit-score ranking and blind matching logic. However, the fairness and accuracy of the algorithm cannot be fully concluded until the system is tested using actual candidate and job data, expert judgments, and objective accuracy measures.</p></div>
+
+    <h2>Objective 3</h2>
+    <p class="objective">To evaluate the proposed platform using ISO/IEC 25010 in terms of Functional Suitability, Performance Efficiency, and Interaction Capability.</p>
+
+    <h3>Findings and Results</h3>
+    <table>
+      <thead><tr><th>ISO/IEC 25010 Area</th><th>Initial Finding</th><th>Evaluation Status</th></tr></thead>
+      <tbody>
+        <tr><td>Functional Suitability</td><td>The prototype includes account creation, sign-in, user-type selection, accessibility controls, profile creation, and planned assessment and matching modules.</td><td>Requires formal functional testing.</td></tr>
+        <tr><td>Performance Efficiency</td><td>The platform is browser-based and designed to operate using ordinary computers and common browsers.</td><td>No response-time or load-test results were provided.</td></tr>
+        <tr><td>Interaction Capability</td><td>Accessibility features include high contrast, larger text, reduced motion, text-based instructions, keyboard support, voice input, and read-page controls.</td><td>Requires user testing with PWD participants.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Functional Suitability</h3>
+    <p>The prototype demonstrates several core functions, including user registration, sign-in, account-type selection, password visibility, accessibility settings, and profile creation. The system architecture also identifies functions for skills assessment, job posting, candidate searching, job recommendations, and feedback collection.</p>
+    <p>These findings indicate that the platform has been structured around the requirements identified in the study. However, functional suitability requires more than the presence of interface screens. Each function must be tested to determine whether it produces the correct result. For example, the researchers should verify whether assessment results are saved correctly, whether the algorithm generates appropriate recommendations, and whether employers can successfully post and manage job vacancies.</p>
+
+    <h3>Performance Efficiency</h3>
+    <p>The platform is designed as a web-based system that can run on a laptop or desktop computer using a common browser. This makes the system relatively accessible because users do not need to install specialized software. The platform also identifies basic implementation requirements, including a stable internet connection and commonly available browsers.</p>
+    <p>However, the study does not provide actual measurements for page-load time, response time, server performance, or concurrent users. These measurements are important because delays may be more difficult for users who rely on screen readers or other assistive technologies. Performance efficiency should therefore be evaluated through response-time testing, load testing, and monitoring of the matching process.</p>
+
+    <h3>Interaction Capability</h3>
+    <p>The prototype provides several features that support interaction capability. The accessibility panel allows users to change visual settings, while the read-page controls and text-first design provide alternatives to purely visual or audio instructions. The account creation screen also provides clear labels, visible password requirements, and an option for voice-based form completion.</p>
+    <p>These features support the ISO/IEC 25010 concepts of inclusivity, operability, and user error protection. However, the visible horizontal scrolling and clipped content in some accessibility-panel views indicate that additional interface improvements may be necessary. The platform should also be tested using keyboard-only navigation, screen readers such as NVDA or JAWS, browser zoom, mobile devices, and different input methods.</p>
+
+    <h3>Conclusion for Objective 3</h3>
+    <div class="conclusion"><p>The third objective was partially achieved based on the available prototype evidence. The system has been prepared for evaluation using Functional Suitability, Performance Efficiency, and Interaction Capability. Initial findings show that the platform contains appropriate features for accessibility and inclusive interaction. Nevertheless, a final ISO/IEC 25010 conclusion requires actual evaluator responses, functional test results, performance measurements, and user testing with persons with visual, hearing, and speech disabilities.</p></div>
+  </section>
+
+  <section class="chapter">
+    <h1>CHAPTER 5<br>CONCLUSIONS AND RECOMMENDATIONS</h1>
+
+    <h2>Conclusions</h2>
+    <h3>Conclusion for Objective 1</h3>
+    <p>The study successfully developed an initial accessible web-based job pairing platform for PWD job seekers and employers. The platform includes account management, user-type selection, profile creation, language options, visual accessibility controls, text-based instructions, read-page functions, and voice-assisted form completion. These features show that accessibility and inclusivity were considered during the development process. Further testing is needed to verify complete accessibility compliance and usability across different devices and assistive technologies.</p>
+
+    <h3>Conclusion for Objective 2</h3>
+    <p>The study successfully designed and integrated a skill-based matching process that connects assessment results with job recommendations. The proposed algorithm uses skill information, fit scores, preferences, and blind matching logic to support fairer employment recommendations. The approach reduces dependence on disability labels and traditional credentials. However, the actual accuracy, fairness, and reliability of the algorithm still need to be validated using real data and objective performance measures.</p>
+
+    <h3>Conclusion for Objective 3</h3>
+    <p>The platform was structured for evaluation using ISO/IEC 25010 criteria. The implemented features provide initial evidence of functional suitability and interaction capability. The browser-based design also provides a foundation for performance testing. However, the available materials do not yet provide sufficient numerical evidence to conclude that the system has achieved a specific ISO/IEC 25010 rating. Formal testing with users, experts, and system performance measurements remains necessary.</p>
+
+    <h2>Recommendations</h2>
+    <ol>
+      <li>Conduct a formal ISO/IEC 25010 evaluation using actual PWD job seekers, employers, system experts, and accessibility specialists.</li>
+      <li>Report the number of evaluators, mean scores, standard deviations, interpretation scale, and findings for each quality characteristic.</li>
+      <li>Test the algorithm using precision, recall, F1-score, and comparison with expert judgments to determine the accuracy of job recommendations.</li>
+      <li>Add real-world testing with users who have visual, hearing, and speech disabilities using screen readers, keyboard-only navigation, browser zoom, and alternative input methods.</li>
+      <li>Improve the accessibility panel by removing unnecessary horizontal scrolling, ensuring proper focus management, and preventing content from being clipped on smaller screens.</li>
+      <li>Conduct performance testing by measuring page-load time, response time, matching-processing time, and system stability under multiple users.</li>
+      <li>Improve the skills assessment by providing captions, text alternatives, adjustable time limits, clear instructions, and equivalent alternative formats.</li>
+      <li>Provide transparent explanations for fit scores so that job seekers and employers can understand why a recommendation was generated.</li>
+      <li>Continue reviewing the algorithm for possible bias and avoid using automated matching as the only basis for rejecting applicants.</li>
+      <li>Strengthen data privacy through secure authentication, role-based access, encrypted storage, informed consent, and clear data-retention policies.</li>
+      <li>Expand the platform’s language support, particularly by improving Tagalog translations and ensuring that translated instructions remain accessible.</li>
+      <li>Establish partnerships with the Persons with Disability Affairs Office, local employers, training institutions, and employment agencies to increase the number of verified users and job opportunities.</li>
+      <li>Collect feedback after actual interviews and hiring outcomes so that matching rules can be improved based on real employment results.</li>
+      <li>Continue maintaining the platform after deployment because accessibility requirements, browser technologies, assistive technologies, and employer needs may change over time.</li>
+    </ol>
+
+    <div class="footer-note">Prepared from the provided thesis objectives, methodology, system architecture, and prototype interface evidence.</div>
+  </section>
+</body>
+</html>
