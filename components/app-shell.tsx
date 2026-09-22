@@ -57,12 +57,25 @@ export function AppShell({ profile, children }: { profile: Profile; children: Re
     return () => window.cancelAnimationFrame(frame);
   }, [pathname]);
 
+  // WCAG 2.1.1 / 2.4.3: Escape closes the mobile navigation and returns focus.
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setOpen(false);
+      }
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [open ]);
+
   return (
     <div className="app-layout">
-      <aside id="primary-navigation" className={`sidebar ${open ? 'open' : ''}`} aria-label="Primary navigation">
+      <div id="primary-navigation" className={`sidebar ${open ? 'open' : ''}`}>
         <BrandMark href="/dashboard" />
-        <p className="sidebar-role">{roleLabel(profile.role, language)}</p>
-        <nav className="sidebar-nav" aria-label="Workspace navigation">
+        <p className="sidebar-role" aria-hidden="false">{roleLabel(profile.role, language)}</p>
+        <nav className="sidebar-nav" aria-label={language === 'tl' ? 'Pangunahing nabigasyon ng workspace' : 'Primary workspace navigation'}>
           {links.map(({ href, label, tagalog, icon: Icon }) => {
             const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(`${href}/`));
             return <Link className={active ? 'active' : ''} href={href} key={href} aria-current={active ? 'page' : undefined} onClick={() => setOpen(false)}><Icon size={17} aria-hidden="true" />{language === 'tl' ? tagalog : label}</Link>;
@@ -72,20 +85,19 @@ export function AppShell({ profile, children }: { profile: Profile; children: Re
           <p title={displayName}>{displayName}</p>
           <SignOutButton />
         </div>
-      </aside>
+      </div>
       <div className="app-content">
         <header className="app-topbar">
           <div className="inline-actions">
-            <button className="icon-button mobile-menu-button" type="button" aria-expanded={open} aria-controls="primary-navigation" onClick={() => setOpen(!open)}>
-              {open ? <X size={19} aria-hidden="true" /> : <Menu size={19} aria-hidden="true" />}<span className="sr-only">{open ? 'Close' : 'Open'} navigation</span>
+            <button className="icon-button mobile-menu-button" type="button" aria-expanded={open} aria-controls="primary-navigation" aria-label={open ? (language === 'tl' ? 'Isara ang nabigasyon' : 'Close navigation') : (language === 'tl' ? 'Buksan ang nabigasyon' : 'Open navigation')} onClick={() => setOpen(!open)}>
+              {open ? <X size={19} aria-hidden="true" /> : <Menu size={19} aria-hidden="true" />}<span className="sr-only" aria-hidden="true">{open ? 'Close' : 'Open'} navigation</span>
             </button>
-            <span className="breadcrumb">PWD Connect / {workspaceName}</span>
+            <nav className="breadcrumb" aria-label="Breadcrumb"><ol><li><span aria-hidden="true">PWD Connect</span></li><li aria-current="page">{workspaceName}</li></ol></nav>
           </div>
           <div className="topbar-tools">
             <LanguageSwitcher />
             <AccessibilityTools />
             <TextToSpeechControls key={pathname} />
-            <span className="status-pill shortlisted"><span aria-hidden="true">●</span> Secure session</span>
           </div>
         </header>
         <main id="main-content" className="page-content" tabIndex={-1}>{children}</main>

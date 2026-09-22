@@ -209,7 +209,7 @@ export function ProfileEditor({ role, isOnboarding = false }: { role: UserRole; 
 
   return <>
     <div className="page-heading">
-      <div><p className="eyebrow">{isOnboarding ? 'Profile setup' : 'Profile and preferences'}</p><h1>{isOnboarding ? 'Set up your profile.' : 'Make your signal clear.'}</h1><p>Use short, clear details about your work. {role === 'candidate' ? 'Your PWD category and access description stay private.' : 'Your organization details help candidates understand the work.'}</p></div>
+      <div><p className="eyebrow">{isOnboarding ? 'Profile setup' : 'Profile and preferences'}</p><h1>{isOnboarding ? 'Set up your profile.' : 'Make your signal clear.'}</h1></div>
       <div className="notice"><CheckCircle2 size={15} aria-hidden="true" /> {isOnboarding ? 'Required after sign in' : 'Private by default'}</div>
     </div>
     {isOnboarding ? <div className="notice onboarding-note" role="note"><strong>Complete this form to continue.</strong><span>Fields marked required help us build a useful profile. You can edit these details at any time.</span></div> : null}

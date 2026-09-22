@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useId, useRef, useState } from 'react';
 
 export type Language = 'en' | 'tl';
 
@@ -71,24 +71,56 @@ type LanguageContextValue = {
 
 const LanguageContext = createContext<LanguageContextValue | null>(null);
 
+export const LANGUAGE_STORAGE_KEY = 'pwd-connect-language';
+
+function readStoredLanguage(): Language {
+  if (typeof window === 'undefined') return 'en';
+  try {
+    const saved = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+    return saved === 'tl' ? 'tl' : 'en';
+  } catch {
+    return 'en';
+  }
+}
+
+function applyLanguage(language: Language) {
+  if (typeof document === 'undefined') return;
+  document.documentElement.lang = language === 'tl' ? 'tl' : 'en';
+}
+
 export function LanguageProvider({ children }: Readonly<{ children: React.ReactNode }>) {
   const [language, setLanguageState] = useState<Language>('en');
   const loadedLanguage = useRef(false);
 
+  // Load system-wide language once, then apply to <html lang> on every page.
+  // Deferred via timeout to avoid a cascading render on mount (lint-safe).
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      const saved = window.localStorage.getItem('pwd-connect-language');
+      setLanguageState(readStoredLanguage());
       loadedLanguage.current = true;
-      if (saved === 'en' || saved === 'tl') setLanguageState(saved);
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
     if (!loadedLanguage.current) return;
-    document.documentElement.lang = language === 'tl' ? 'tl' : 'en';
-    window.localStorage.setItem('pwd-connect-language', language);
+    applyLanguage(language);
+    try {
+      window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+    } catch {
+      // Ignore private-mode write failures; lang still applies for this session.
+    }
   }, [language]);
+
+  // Sync language across tabs and remounted switchers system-wide.
+  useEffect(() => {
+    function onStorage(event: StorageEvent) {
+      if (event.key !== LANGUAGE_STORAGE_KEY) return;
+      setLanguageState(readStoredLanguage());
+    }
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   function setLanguage(nextLanguage: Language) {
     setLanguageState(nextLanguage);
@@ -105,5 +137,10 @@ export function useLanguage() {
 
 export function LanguageSwitcher() {
   const { language, setLanguage, t } = useLanguage();
-  return <label className="language-switcher"><span>{t('language')}</span><select aria-label={t('language')} value={language} onChange={(event) => setLanguage(event.target.value as Language)}><option value="en">{t('english')}</option><option value="tl">{t('tagalog')}</option></select></label>;
+  // Unique IDs per instance so multiple switchers system-wide never duplicate
+  // IDs (WCAG 4.1.1 Parsing) — e.g. header + auth card on the same page.
+  const baseId = useId().replace(/[^a-zA-Z0-9_-]/g, '');
+  const selectId = `site-language-${baseId}`;
+  const helpId = `site-language-help-${baseId}`;
+  return <span className="language-switcher"><label htmlFor={selectId}>{t('language')}</label><select id={selectId} value={language} onChange={(event) => setLanguage(event.target.value as Language)} aria-describedby={helpId}><option value="en">{t('english')}</option><option value="tl">{t('tagalog')}</option></select><span id={helpId} className="sr-only">{t('languageHelp')}</span></span>;
 }

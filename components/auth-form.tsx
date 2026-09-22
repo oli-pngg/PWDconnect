@@ -232,15 +232,15 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
           </ul>
         </div>
       </aside>
-      <main className="auth-main" id="main-content">
+      <main className="auth-main" id="main-content" tabIndex={-1} aria-label={isLogin ? 'Sign in' : 'Create account'}>
         <div className="auth-main-inner">
           <div className="register-brand"><BrandMark href="/" /></div>
           <div className="auth-accessibility"><LanguageSwitcher /><AccessibilityTools /><TextToSpeechControls /></div>
           <section className="auth-card" aria-labelledby="auth-title">
-            <div className="auth-switch" aria-label="Account actions">
-              <Link className={isLogin ? 'active' : ''} href="/login">{t('signIn')}</Link>
-              <Link className={!isLogin ? 'active' : ''} href="/register">{t('createAccount')}</Link>
-            </div>
+            <nav className="auth-switch" aria-label="Account actions">
+              <Link className={isLogin ? 'active' : ''} href="/login" aria-current={isLogin ? 'page' : undefined}>{t('signIn')}</Link>
+              <Link className={!isLogin ? 'active' : ''} href="/register" aria-current={!isLogin ? 'page' : undefined}>{t('createAccount')}</Link>
+            </nav>
             {isLogin ? <p className="eyebrow auth-card-eyebrow">Welcome back</p> : null}
             <h1 id="auth-title" tabIndex={-1}>{isProfileStep ? 'Build your profile' : isLogin ? t('signIn') : t('createAccount')}</h1>
             <p id="auth-description">{isProfileStep ? 'Add the details employers need to understand your work. You can edit them later.' : isLogin ? (language === 'tl' ? 'Ilagay ang email at password para magpatuloy.' : 'Enter your email and password to continue.') : (language === 'tl' ? 'Ilagay muna ang account details. Susunod ang profile builder.' : 'Enter your account details first.')}</p>

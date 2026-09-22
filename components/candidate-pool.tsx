@@ -35,7 +35,7 @@ export function CandidatePool() {
   }
 
   return <>
-    <div className="page-heading"><div><p className="eyebrow">Blind candidate review</p><h1>Meet the evidence first.</h1><p>Initial previews use a pseudonymous reference, verified skills, and fit reasoning. Personal details stay protected until your workflow advances.</p></div><div className="notice"><ShieldCheck size={16} aria-hidden="true" /> Bias-aware review</div></div>
+    <div className="page-heading"><div><p className="eyebrow">Blind candidate review</p><h1>Meet the evidence first.</h1></div><div className="notice"><ShieldCheck size={16} aria-hidden="true" /> Bias-aware review</div></div>
     <div className="panel panel-accent" style={{ marginBottom: 18 }}><div className="inline-actions"><Eye size={18} aria-hidden="true" /><strong>What you see is intentionally limited</strong></div><p className="muted" style={{ marginBottom: 0 }}>Names, disability type, and contact details are not returned by the initial candidate endpoint. This is an access-control rule, not just a visual hiding technique.</p></div>
     {message ? <div className="form-success" role="status">{message}</div> : null}
     {error ? <div className="form-error" role="alert">{error}</div> : null}

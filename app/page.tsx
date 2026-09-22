@@ -27,11 +27,10 @@ export default function HomePage() {
         </div>
       </header>
 
-      <main id="main-content">
+      <main id="main-content" tabIndex={-1}>
         <section className="hero" aria-labelledby="hero-title">
           <div className="page-width hero-layout">
             <div>
-              <p className="kicker">Legazpi City / skills-first employment</p>
               <h1 className="display" id="hero-title">{t('heroBefore')} <em>{t('heroEmphasis')}</em></h1>
               <p className="lede">{t('heroDescription')}</p>
               <div className="hero-actions">
@@ -40,7 +39,7 @@ export default function HomePage() {
               </div>
 
             </div>
-            <div className="hero-visual" aria-label={language === 'tl' ? 'Imahen ng patas na pagtutugma ng kasanayan sa trabaho' : 'Illustration showing skills-based matching results'} role="img">
+            <div className="hero-visual" role="img" aria-label={language === 'tl' ? 'Ilustrasyon ng resulta ng pagtutugma ng kasanayan: 94 percent match snapshot na may verified na kasanayan' : 'Illustration of skills-based matching results: 94 percent match snapshot with verified skills'}>
               <div className="visual-card tag">Your skills are more than a job title.</div>
               <div className="visual-card main">
                 <div className="visual-title"><strong>Match snapshot</strong><small>94%</small></div>

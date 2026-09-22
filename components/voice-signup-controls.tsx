@@ -113,12 +113,12 @@ export function VoiceSignupControls({ onName, onEmail, onRole }: VoiceSignupCont
     }
   }
 
-  return <div className="voice-signup">
-    <button className="button secondary small" type="button" onClick={listening ? stop : start} aria-pressed={listening}>
+  return <div className="voice-signup" role="group" aria-label="Voice form fill controls">
+    <button className="button secondary small" type="button" onClick={listening ? stop : start} aria-pressed={listening} aria-describedby="voice-signup-help">
       {listening ? <MicOff size={15} aria-hidden="true" /> : <Mic size={15} aria-hidden="true" />}
       {listening ? 'Stop voice fill' : 'Fill form by voice'}
     </button>
-    <p className="field-help">{listening ? `Step ${step}: name, email, then account type.` : 'Optional. Your browser will ask for microphone permission.'}</p>
-    <p className="sr-status" role="status" aria-live="polite">{status}</p>
+    <p className="field-help" id="voice-signup-help">{listening ? `Step ${step}: name, email, then account type.` : 'Optional. Your browser will ask for microphone permission.'}</p>
+    <p className="sr-status" role="status" aria-live="polite" aria-atomic="true">{status}</p>
   </div>;
 }

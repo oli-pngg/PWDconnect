@@ -37,8 +37,7 @@ export function MessageInbox() {
 
   return <>
     <div className="page-heading">
-      <div><p className="eyebrow">Direct conversations</p><h1>Messages that move work forward.</h1><p>Keep questions, decisions, and job offers in one accessible thread connected to the application.</p></div>
-      <div className="notice"><MessageCircle size={16} aria-hidden="true" /> Secure application threads</div>
+      <div><p className="eyebrow">Direct conversations</p><h1>Messages that move work forward.</h1></div>
     </div>
     {error ? <div className="form-error" role="alert">{error}</div> : null}
     {loading ? <div className="skeleton-card"><span className="skeleton skeleton-title" /><span className="skeleton skeleton-line" /></div> : conversations.length ? <section className="panel" aria-labelledby="conversation-list-heading">
