@@ -24,11 +24,6 @@ export const DISABILITY_OPTIONS = [
     label: 'Other access need',
     description: 'Another support need not listed here'
   },
-  {
-    value: 'prefer_not_to_say',
-    label: 'Prefer not to say',
-    description: 'Keep this information private'
-  }
 ] as const;
 
 export const DISABILITY_VALUES = DISABILITY_OPTIONS.map((option) => option.value);

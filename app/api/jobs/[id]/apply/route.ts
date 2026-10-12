@@ -27,6 +27,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
 
     const skills = await getCandidateSkills(supabase, user.id);
     const fit = calculateFitScore(job as unknown as Job, skills, profile.location ?? undefined);
+    if (!fit.hasVerifiedEvidence) return jsonError('Complete the accessible skills assessment before applying so your match is based on demonstrated skills.', 403);
     const admin = createSupabaseAdminClient();
     const { data: application, error: applicationError } = await admin.from('applications').insert({
       job_id: id,

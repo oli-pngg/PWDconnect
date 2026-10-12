@@ -1,7 +1,8 @@
 import { getAuthenticatedContext } from '@/lib/auth';
 import { DISABILITY_VALUES } from '@/lib/disability';
-import { cleanAllowedArray, cleanStringArray, cleanText, cleanUuidArray, jsonError, jsonOk, safeInteger } from '@/lib/http';
+import { bodyTooLarge, cleanAllowedArray, cleanStringArray, cleanText, cleanUuidArray, jsonError, jsonOk, safeInteger } from '@/lib/http';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
+import { getProfilePhotoUrl } from '@/lib/profile-photo';
 
 const profileSelect = 'id, email, role, full_name, organization_name, headline, bio, disability_description, location, work_mode, availability, years_experience, disability_types, accessibility_needs, profile_photo_url, profile_photo_alt, profile_photo_path, profile_completed, created_at, updated_at';
 const setupError = 'Profile setup is not ready. Run supabase/migrations/004_accessible_profiles_and_photos.sql in your Supabase project, then sign out and sign in again.';
@@ -23,13 +24,15 @@ export async function GET(request: Request) {
     ]);
     if (isSetupError(profileError) || isSetupError(skillsError)) return jsonError(setupError, 500);
     if (profileError || skillsError) return jsonError('Unable to load your profile.', 500);
-    return jsonOk({ profile, skills: profileSkills ?? [] });
+    const safeProfile = profile ? { ...profile, profile_photo_url: await getProfilePhotoUrl(profile.profile_photo_path) } : profile;
+    return jsonOk({ profile: safeProfile, skills: profileSkills ?? [] });
   } catch {
     return jsonError('Unable to load your profile.', 500);
   }
 }
 
 export async function PATCH(request: Request) {
+  if (bodyTooLarge(request, 64 * 1024)) return jsonError('Request is too large.', 413);
   const limited = checkRateLimit(request, 'profile-write', { limit: 20, windowMs: 10 * 60 * 1000 });
   if (!limited.allowed) return rateLimitResponse(limited.retryAfterSeconds);
   try {
@@ -53,13 +56,13 @@ export async function PATCH(request: Request) {
     const yearsExperience = Math.max(0, Math.min(safeInteger(body.yearsExperience), 80));
     const accessibilityNeeds = cleanStringArray(body.accessibilityNeeds, 8, 80);
     const profileCompleted = role === 'candidate'
-      ? Boolean(fullName && bio && disabilityDescription && disabilityTypes.length && workMode)
+      ? Boolean(fullName && bio && disabilityTypes.length && workMode)
       : role === 'employer'
         ? Boolean(fullName && organizationName && bio && workMode)
         : Boolean(fullName && bio);
-    if (!fullName || !bio || (role === 'employer' && !organizationName) || (role === 'candidate' && (!disabilityDescription || !disabilityTypes.length))) {
+    if (!fullName || !bio || (role === 'employer' && !organizationName) || (role === 'candidate' && !disabilityTypes.length)) {
       return jsonError(role === 'candidate'
-        ? 'Add your name, profile description, PWD category, and category description before saving.'
+        ? 'Add your name, profile description, and PWD category before saving.'
         : role === 'employer'
           ? 'Add your contact name, organization name, and organization description before saving.'
           : 'Add your name and profile description before saving.');
@@ -124,7 +127,8 @@ export async function PATCH(request: Request) {
       if (insertError) return jsonError('Unable to save selected skills.', 500);
     }
 
-    return jsonOk({ profile, skills: selectedIds });
+    const safeProfile = profile ? { ...profile, profile_photo_url: await getProfilePhotoUrl(profile.profile_photo_path) } : profile;
+    return jsonOk({ profile: safeProfile, skills: selectedIds });
   } catch {
     return jsonError('Unable to save your profile.', 500);
   }

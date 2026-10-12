@@ -1,5 +1,6 @@
 import { getAuthenticatedContext } from '@/lib/auth';
 import { jsonError, jsonOk } from '@/lib/http';
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import type { ApplicationStatus, ConversationSummary, JobOffer, Message } from '@/lib/types';
 
@@ -20,18 +21,21 @@ function candidateReference(candidateId: string) {
   return `Candidate ${candidateId.replace(/-/g, '').slice(0, 4).toUpperCase()}`;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const { supabase, user } = await getAuthenticatedContext();
     if (!user) return jsonError('Authentication required.', 401);
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
     if (profile?.role !== 'candidate' && profile?.role !== 'employer') return jsonError('Only candidate and employer accounts can use messages.', 403);
+    const limited = checkRateLimit(request, 'messages-read', { limit: 60, windowMs: 60 * 1000 }, user.id);
+    if (!limited.allowed) return rateLimitResponse(limited.retryAfterSeconds);
 
     const admin = createSupabaseAdminClient();
     let applicationsQuery = admin
       .from('applications')
       .select('id, job_id, candidate_id, status, created_at, jobs!inner(id, title, employer_id)')
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(100);
 
     if (profile.role === 'candidate') {
       applicationsQuery = applicationsQuery.eq('candidate_id', user.id);
@@ -52,7 +56,7 @@ export async function GET() {
     const applicationIds = applications.map((application) => application.id);
     const employerIds = [...new Set(applications.map((application) => one(application.jobs)?.employer_id).filter(Boolean))] as string[];
     const [{ data: messages, error: messagesError }, { data: offers, error: offersError }, { data: employers }] = await Promise.all([
-      admin.from('messages').select('id, application_id, sender_id, body, read_at, created_at').in('application_id', applicationIds).order('created_at', { ascending: false }),
+      admin.from('messages').select('id, application_id, sender_id, body, read_at, created_at').in('application_id', applicationIds).order('created_at', { ascending: false }).limit(1000),
       admin.from('job_offers').select('id, application_id, job_id, employer_id, candidate_id, message, compensation, start_date, status, created_at, responded_at').in('application_id', applicationIds),
       employerIds.length ? admin.from('profiles').select('id, organization_name').in('id', employerIds) : Promise.resolve({ data: [] })
     ]);

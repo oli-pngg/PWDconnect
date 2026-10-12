@@ -27,10 +27,10 @@ function removeExpired(now: number) {
   }
 }
 
-export function checkRateLimit(request: Request, scope: string, options: RateLimitOptions) {
+export function checkRateLimit(request: Request, scope: string, options: RateLimitOptions, identity?: string) {
   const now = Date.now();
   removeExpired(now);
-  const key = `${scope}:${requestAddress(request)}`;
+  const key = `${scope}:${identity || requestAddress(request)}`;
   const current = buckets.get(key);
   const bucket = !current || current.resetAt <= now
     ? { count: 0, resetAt: now + options.windowMs }

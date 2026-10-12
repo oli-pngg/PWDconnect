@@ -11,9 +11,12 @@ PWD Connect is a deployable Next.js and Supabase implementation of the supplied 
 - Candidate profile setup asks for a specific access profile: visual, hearing, speech, multiple, other, or prefer not to say.
 - Server-verified sessions with protected dashboard routes.
 - Candidate profile, skills, work preferences, and interaction preferences.
-- Keyboard and screen-reader-friendly skill assessment with no mandatory countdown.
+- Keyboard and screen-reader-friendly occupational skills quiz with no visible countdown, separate from RAND-36 health results.
+- Separate RAND 36-Item Health Survey Version 1.0 workflow (official English items) with eight scale scores and a separately reported health-change item. Scores are applicant-only and are not used in job ranking; no Tagalog RAND translation is configured.
+- Employer-authored job assessment banks require at least five questions; candidates receive up to six randomized questions per opening.
 - Server-side assessment scoring; answer keys are never returned to the browser.
-- Transparent fit scoring based on required skills, verification, and location preference.
+- When an opening is selected, its assessment result is recorded with that opening; only skills meeting the verification threshold influence recommendations and applications.
+- Rule-based fit scoring uses profile skills for skill alignment, adds a verification bonus, and adds an exact-location bonus. It is not a validated employability prediction.
 - Candidate job search, recommendations, and applications.
 - Employer job drafts, publishing, accommodation descriptions, and candidate review.
 - Blind initial candidate previews using pseudonymous references instead of names or disability details.
@@ -62,8 +65,8 @@ The platform is browser-based and is designed for keyboard navigation, high cont
 ## Local setup
 
 1. Create a Supabase project and enable Email provider authentication.
-2. In Supabase **Authentication > Providers > Email**, turn off **Confirm email** for the password-only pilot flow. New accounts will then receive a session immediately without an email verification step. Disabling confirmation means anyone with access to an email address can register it, so keep this setting limited to the intended pilot.
-3. In the Supabase SQL editor, run `supabase/migrations/001_initial.sql`, then `supabase/migrations/002_add_disability_types.sql`, then `supabase/migrations/003_keep_sensitive_profiles_private.sql`, then `supabase/migrations/004_accessible_profiles_and_photos.sql`, and finally `supabase/migrations/005_messaging_and_job_offers.sql`. The fourth migration creates the `profile-photos` Storage bucket and its ownership policies; the fifth adds realtime application messaging and job offers.
+2. In Supabase **Authentication > Providers > Email**, keep **Confirm email** enabled for a public deployment. New accounts confirm their address through `/auth/callback` before signing in. Disabling confirmation is acceptable only for a private pilot because it allows email impersonation.
+3. Back up the Supabase project and verify restore before schema changes. Test the migration chain on a disposable project, then run migrations `001_initial.sql` through `010_rand36_assessments.sql` in order. Migration 010 adds private, consent-linked RAND-36 responses and eight separate scale scores. Do not apply the locally untracked migrations to a populated project until its migration history has been checked.
 4. Copy `.env.example` to `.env.local` and fill in:
 
    ```text
@@ -83,19 +86,21 @@ The platform is browser-based and is designed for keyboard navigation, high cont
 
 The first registered account becomes a candidate or employer according to the selected role. To create a research administrator, update that user’s `profiles.role` to `admin` from a protected Supabase administration workflow. Do not expose or use the service-role key in a browser.
 
-The application does not send a verification-email request when Confirm email is off. Supabase still enforces authentication request rate limits; those limits are intentionally not removed because they protect blind and sighted users from credential abuse, spam, and account lockout attacks. PWD Connect also applies server-side limits to sensitive API actions and returns plain-language, screen-reader-announced `429` errors. The built-in limiter is process-local; deployments with multiple instances should place a shared store such as Redis or an edge rate-limit service in front of the app.
+Supabase enforces authentication request rate limits; those limits are intentionally not removed because they protect blind and sighted users from credential abuse, spam, and account lockout attacks. PWD Connect also applies server-side limits to sensitive API actions and returns plain-language, screen-reader-announced `429` errors. The built-in limiter is process-local; deployments with multiple instances should place a shared store such as Redis or an edge rate-limit service in front of the app.
 
 ## Security model
 
 - Browser code uses only `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
-- `SUPABASE_SERVICE_ROLE_KEY` is imported only by files marked `server-only` and is used for limited server tasks such as private answer-key reads and explicit employer-name lookups.
+- `SUPABASE_SERVICE_ROLE_KEY` is imported only by files marked `server-only` and is used for limited server tasks such as private answer-key reads, explicit employer-name lookups, and blind candidate-score recalculation.
+- RAND-36 item and scale scoring follows the linked RAND 36-Item Health Survey Version 1.0 scoring instructions; the health-change item is stored separately. RAND-36 results are not part of `lib/matching.ts` and are not shown to employers.
+- RAND instrument attribution: developed at RAND as part of the Medical Outcomes Study. Web layout follows RAND's English Version 1.0 form and scoring rules; translations are not supplied or represented as validated. See [RAND scoring](https://www.rand.org/health/surveys/mos/36-item-short-form/scoring.html) and [RAND use terms](https://www.rand.org/health/surveys/mos/36-item-short-form/terms.html).
 - Every protected route calls `supabase.auth.getUser()` and derives the actor ID from the verified session. No request accepts a user ID to decide ownership.
 - Candidate profile, skills, assessment attempts, and applications are filtered by the authenticated ID.
 - Employer operations verify the employer role and the employer ID on the related job before returning or mutating data.
 - Initial employer candidate responses intentionally omit candidate names, email, disability type, and contact data.
 - Runtime data access uses Supabase’s query builder, which sends values as query parameters. Search terms are escaped for wildcard behavior; no user input is interpolated into SQL.
 - Postgres RLS remains enabled even when a route uses the server-only service client. Service-client calls happen only after an explicit session and role/ownership check.
-- Profile photos are accepted only as JPG, PNG, or WebP files up to 5 MB. The upload route validates the session, replaces the previous owned object, and stores the user-provided short alt text with the profile.
+- Profile photos are accepted only as JPG, PNG, or WebP files up to 5 MB. The upload route validates the session and file signature, keeps the bucket private, replaces the previous owned object, and returns short-lived signed URLs with user-provided alt text.
 
 ## Deployment
 

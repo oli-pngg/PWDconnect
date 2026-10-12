@@ -1,10 +1,11 @@
 import { getAuthenticatedContext } from '@/lib/auth';
-import { cleanText, jsonError, jsonOk, safeInteger } from '@/lib/http';
+import { bodyTooLarge, cleanText, jsonError, jsonOk, safeInteger } from '@/lib/http';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 
 const allowedEvents = new Set(['dashboard_load', 'jobs_load', 'assessment_load', 'profile_load']);
 
 export async function POST(request: Request) {
+  if (bodyTooLarge(request, 8 * 1024)) return jsonError('Request is too large.', 413);
   const limited = checkRateLimit(request, 'performance-event-write', { limit: 120, windowMs: 60 * 1000 });
   if (!limited.allowed) return rateLimitResponse(limited.retryAfterSeconds);
   try {

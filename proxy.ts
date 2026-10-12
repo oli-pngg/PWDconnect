@@ -45,6 +45,22 @@ export async function proxy(request: NextRequest) {
     return redirectWithSessionCookies(url);
   }
 
+  if (user && isProtected) {
+    const { data: profile } = await supabase.from('profiles').select('role, profile_completed').eq('id', user.id).maybeSingle();
+    const isProfilePage = pathname === '/profile' || pathname.startsWith('/profile/');
+    if (profile && !profile.profile_completed && !isProfilePage) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/profile';
+      url.search = '?setup=1';
+      return redirectWithSessionCookies(url);
+    }
+
+    const isEmployerPage = pathname === '/employer' || pathname.startsWith('/employer/');
+    const isAdminPage = pathname === '/admin' || pathname.startsWith('/admin/');
+    if (profile && isEmployerPage && profile.role !== 'employer') return redirectWithSessionCookies(new URL('/dashboard', request.url));
+    if (profile && isAdminPage && profile.role !== 'admin') return redirectWithSessionCookies(new URL('/dashboard', request.url));
+  }
+
   return response;
 }
 

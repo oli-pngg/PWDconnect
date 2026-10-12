@@ -1,6 +1,7 @@
 import { getApplicationAccess } from '@/lib/application-access';
 import { getAuthenticatedContext } from '@/lib/auth';
-import { cleanText, jsonError, jsonOk } from '@/lib/http';
+import { bodyTooLarge, cleanText, jsonError, jsonOk } from '@/lib/http';
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 
 function validUuid(value: string) {
@@ -8,13 +9,18 @@ function validUuid(value: string) {
 }
 
 function validDate(value: string) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
 }
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { user } = await getAuthenticatedContext();
     if (!user) return jsonError('Authentication required.', 401);
+    if (bodyTooLarge(request, 16 * 1024)) return jsonError('Offer is too large.', 413);
+    const limited = checkRateLimit(request, 'application-offer-write', { limit: 10, windowMs: 60 * 60 * 1000 }, user.id);
+    if (!limited.allowed) return rateLimitResponse(limited.retryAfterSeconds);
     const { id } = await context.params;
     if (!validUuid(id)) return jsonError('Invalid application.', 400);
     const access = await getApplicationAccess(user.id, id);

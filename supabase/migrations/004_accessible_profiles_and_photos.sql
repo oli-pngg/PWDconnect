@@ -8,7 +8,7 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 values (
   'profile-photos',
   'profile-photos',
-  true,
+  false,
   5242880,
   array['image/jpeg', 'image/png', 'image/webp']
 )
@@ -18,8 +18,12 @@ on conflict (id) do update set
   allowed_mime_types = excluded.allowed_mime_types;
 
 drop policy if exists "profile_photos_public_read" on storage.objects;
-create policy "profile_photos_public_read" on storage.objects
-for select using (bucket_id = 'profile-photos');
+drop policy if exists "profile_photos_read_own" on storage.objects;
+create policy "profile_photos_read_own" on storage.objects
+for select to authenticated using (
+  bucket_id = 'profile-photos'
+  and name like ((select auth.uid())::text || '/%')
+);
 
 drop policy if exists "profile_photos_insert_own" on storage.objects;
 create policy "profile_photos_insert_own" on storage.objects

@@ -5,9 +5,17 @@ import { useEffect, useRef, useState } from 'react';
 import { Skeleton } from '@/components/skeleton';
 import type { AssessmentQuestion } from '@/lib/types';
 
-type Attempt = { score: number; total_points: number; completed_at: string };
+type Attempt = { score: number; total_points: number; completed_at: string; assessment_category?: string | null; job_id?: string | null };
+type AssessmentJob = { id: string; title: string; assessment_category: string };
+type AssessmentPayload = { jobs?: AssessmentJob[]; selectedJob?: AssessmentJob | null; categories?: string[]; selectedCategory?: string | null; assessmentToken?: string | null; questions?: AssessmentQuestion[]; latestAttempt?: Attempt | null; error?: string };
 
 export function AssessmentView() {
+  const [categories, setCategories] = useState<string[]>([]);
+  const [jobs, setJobs] = useState<AssessmentJob[]>([]);
+  const [jobId, setJobId] = useState('');
+  const [category, setCategory] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [assessmentToken, setAssessmentToken] = useState('');
   const [questions, setQuestions] = useState<AssessmentQuestion[]>([]);
   const [latest, setLatest] = useState<Attempt | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -17,51 +25,113 @@ export function AssessmentView() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<Attempt | null>(null);
+  const [verifiedSkillCount, setVerifiedSkillCount] = useState(0);
   const questionHeadingRef = useRef<HTMLHeadingElement | null>(null);
 
   useEffect(() => {
-    fetch('/api/assessment', { cache: 'no-store' }).then(async (response) => {
-      const payload = await response.json() as { questions?: AssessmentQuestion[]; latestAttempt?: Attempt | null; error?: string };
-      if (!response.ok) throw new Error(payload.error || 'Unable to load assessment.');
-      setQuestions(payload.questions ?? []);
-      setLatest(payload.latestAttempt ?? null);
-    }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'Unable to load assessment.')).finally(() => setLoading(false));
-  }, []);
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      setError('');
+      try {
+        const query = jobId
+          ? `?jobId=${encodeURIComponent(jobId)}`
+          : category
+            ? `?category=${encodeURIComponent(category)}`
+            : '';
+        const response = await fetch(`/api/assessment${query}`, { cache: 'no-store' });
+        const payload = await response.json() as AssessmentPayload;
+        if (!response.ok) throw new Error(payload.error || 'Unable to load assessment.');
+        if (cancelled) return;
+        setJobs(payload.jobs ?? []);
+        setCategories(payload.categories ?? []);
+        setQuestions(payload.questions ?? []);
+        setLatest(payload.latestAttempt ?? null);
+        setSelectedCategory(payload.selectedCategory ?? '');
+        setAssessmentToken(payload.assessmentToken ?? '');
+        if (payload.selectedJob?.id && payload.selectedJob.id !== jobId) setJobId(payload.selectedJob.id);
+      } catch (reason: unknown) {
+        if (!cancelled) setError(reason instanceof Error ? reason.message : 'Unable to load assessment.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    void load();
+    return () => { cancelled = true; };
+  }, [category, jobId]);
 
-  // WCAG 2.4.3 / 4.1.3: move focus to the new question heading on step change.
   useEffect(() => {
     if (!loading && questions.length) questionHeadingRef.current?.focus({ preventScroll: false });
   }, [index, loading, questions.length]);
 
-  if (loading) return <div className="assessment-layout"><div className="assessment-card"><div className="skeleton-stack"><Skeleton className="skeleton-title" /><Skeleton className="skeleton-line" /><Skeleton className="skeleton-line" /><Skeleton className="skeleton-line short" /></div></div><div className="skeleton-card"><Skeleton className="skeleton-title" /></div></div>;
-  if (error) return <div className="form-error" role="alert">{error}</div>;
-  if (!questions.length) return <div className="empty-state"><h3>Assessment content is not configured.</h3><p>Run the supplied Supabase migration to seed the accessible assessment questions.</p></div>;
+  function chooseCategory(value: string) {
+    setJobId('');
+    setCategory(value);
+    setSelectedCategory('');
+    setAssessmentToken('');
+    setQuestions([]);
+    setAnswers({});
+    setIndex(0);
+    setResult(null);
+    setVerifiedSkillCount(0);
+    setError('');
+  }
 
-  const current = questions[index];
-  const answeredCount = Object.keys(answers).length;
-  const isLast = index === questions.length - 1;
+  function chooseJob(value: string) {
+    setJobId(value);
+    setCategory('');
+    setSelectedCategory('');
+    setAssessmentToken('');
+    setQuestions([]);
+    setAnswers({});
+    setIndex(0);
+    setResult(null);
+    setVerifiedSkillCount(0);
+    setError('');
+  }
 
   async function submit() {
+    const answeredCount = Object.keys(answers).length;
     if (answeredCount !== questions.length) {
       setError('Answer every question before submitting. Use the progress indicator to find the unanswered items.');
       return;
     }
     setPending(true);
     setError('');
-    const response = await fetch('/api/assessment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ responses: questions.map((question) => ({ questionId: question.id, selectedOption: answers[question.id] })), accommodationNotes: notes }) });
-    const payload = await response.json() as { attempt?: Attempt; error?: string };
-    if (!response.ok) setError(payload.error || 'Unable to submit assessment.');
-    else if (payload.attempt) { setResult(payload.attempt); setLatest(payload.attempt); }
-    setPending(false);
+    try {
+      const response = await fetch('/api/assessment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId: jobId || undefined, assessmentCategory: selectedCategory, assessmentToken, responses: questions.map((question) => ({ questionId: question.id, selectedOption: answers[question.id] })), accommodationNotes: notes }) });
+      const payload = await response.json() as { attempt?: Attempt; verifiedSkillCount?: number; error?: string };
+      if (!response.ok) setError(payload.error || 'Unable to submit assessment.');
+      else if (payload.attempt) { setResult(payload.attempt); setLatest(payload.attempt); setVerifiedSkillCount(payload.verifiedSkillCount ?? 0); }
+    } catch {
+      setError('The server could not be reached. Check that the development server is running, then try again.');
+    } finally {
+      setPending(false);
+    }
   }
+
+  if (loading && !categories.length) return <div className="assessment-layout"><div className="assessment-card"><div className="skeleton-stack"><Skeleton className="skeleton-title" /><Skeleton className="skeleton-line" /><Skeleton className="skeleton-line" /><Skeleton className="skeleton-line short" /></div></div><div className="skeleton-card"><Skeleton className="skeleton-title" /></div></div>;
+  if (error && !categories.length) return <div className="form-error" role="alert">{error} <button className="button secondary small" type="button" onClick={() => window.location.reload()}>Retry</button></div>;
 
   if (result) {
     const percentage = result.total_points ? Math.round((result.score / result.total_points) * 100) : 0;
-    return <div className="content-grid equal"><section className="assessment-card panel-accent"><p className="eyebrow">Assessment complete</p><h2 style={{ marginTop: 10 }}>Your skills have more signal now.</h2><div className="fit-score large" aria-label={`${percentage} percent assessment score`}>{percentage}%</div><p className="muted">{result.score} of {result.total_points} points. Verified skill tags from this attempt now help rank your recommendations.</p><a className="button secondary" href="/jobs">See recommended work <ArrowRight size={16} aria-hidden="true" /></a></section><section className="panel"><div className="panel-header"><div><h2>What happens next?</h2><p>Keep control of the details you share.</p></div><CheckCircle2 size={21} aria-hidden="true" /></div><ul className="mini-list"><li><CheckCircle2 size={17} aria-hidden="true" /><div><strong>Scores become verified signals</strong><span>Employers see skill evidence, not disability labels, in initial screening.</span></div></li><li><CheckCircle2 size={17} aria-hidden="true" /><div><strong>You can update your profile</strong><span>Self-reported skills and work preferences remain editable.</span></div></li><li><CheckCircle2 size={17} aria-hidden="true" /><div><strong>Nothing guarantees a hire</strong><span>Recommendations support decisions; they do not promise employment.</span></div></li></ul></section></div>;
+    return <div className="content-grid equal"><section className="assessment-card panel-accent"><p className="eyebrow">Occupational quiz result</p><h2 style={{ marginTop: 10 }}>Job-skill quiz complete.</h2><p className="notice">Category: {result.assessment_category || selectedCategory}</p><div className="fit-score large" aria-label={`${percentage} percent occupational quiz score`}>{percentage}%</div><p className="muted">{result.score} of {result.total_points} quiz points. {verifiedSkillCount ? `${verifiedSkillCount} job skill${verifiedSkillCount === 1 ? '' : 's'} met this quiz's verification rule.` : 'No job skill met this quiz’s verification rule.'} This is not an employability score.</p><button className="button secondary" type="button" onClick={() => chooseJob('')}>Choose another assessment <ArrowRight size={16} aria-hidden="true" /></button></section><section className="panel"><div className="panel-header"><div><h2>What happens next?</h2><p>Keep control of the details you share.</p></div><CheckCircle2 size={21} aria-hidden="true" /></div><p className="muted">Verified occupational skills can explain job matches. Employers make the final hiring decision.</p></section></div>;
   }
 
+  const current = questions[index];
+  const answeredCount = Object.keys(answers).length;
+  const isLast = index === questions.length - 1;
+
   return <>
-    <div className="page-heading"><div><p className="eyebrow">Integrated skill-based assessment</p><h1>Show how you work.</h1><p>Six short questions. No forced countdown. Choose the answer that best reflects a practical work habit.</p></div><div className="notice"><Clock3 size={15} aria-hidden="true" /> No mandatory timer</div></div>
-    <div className="assessment-layout"><section className="assessment-card" aria-labelledby="question-heading"><div className="assessment-progress"><span>Question {index + 1} of {questions.length}</span><div className="meter" role="progressbar" aria-label={`Question ${index + 1} of ${questions.length}`} aria-valuenow={index + 1} aria-valuemin={1} aria-valuemax={questions.length}><span style={{ width: `${((index + 1) / questions.length) * 100}%` }} /></div><span>{answeredCount}/{questions.length} answered</span></div><p className="question-number">Practical judgment</p><h2 id="question-heading" ref={questionHeadingRef} tabIndex={-1}>{current.prompt}</h2><fieldset className="option-list" style={{ border: 0, padding: 0, margin: 0 }}><legend className="sr-only">Select one answer</legend>{current.options.map((option, optionIndex) => <div className="option" key={option}><input id={`question-${current.id}-${optionIndex}`} type="radio" name={`question-${current.id}`} checked={answers[current.id] === option} onChange={() => setAnswers((previous) => ({ ...previous, [current.id]: option }))} /><label htmlFor={`question-${current.id}-${optionIndex}`}>{option}</label></div>)}</fieldset><div className="assessment-actions"><button className="button secondary small" type="button" disabled={index === 0} onClick={() => setIndex((value) => Math.max(0, value - 1))}><ArrowLeft size={15} aria-hidden="true" /> Previous</button>{isLast ? <button className="button small" type="button" disabled={pending} onClick={submit}>{pending ? 'Scoring...' : 'Submit assessment'} <CheckCircle2 size={15} aria-hidden="true" /></button> : <button className="button small" type="button" onClick={() => setIndex((value) => Math.min(questions.length - 1, value + 1))}>Next <ArrowRight size={15} aria-hidden="true" /></button>}</div><div className="sr-status" role="status" aria-live="polite" aria-atomic="true">{error}</div></section><aside className="panel" aria-labelledby="assessment-support-heading"><div className="panel-header"><div><h2 id="assessment-support-heading">Choose what helps</h2><p>Accommodations are part of valid assessment.</p></div><Info size={20} aria-hidden="true" /></div><p className="small-text muted">You can use a screen reader, keyboard, zoom, captions, or another assistive tool. Tell us about timing or format support below; this note is used for research and assessment context.</p><label className="field" htmlFor="accommodation-notes"><span>Optional accommodation note</span><textarea className="textarea" id="accommodation-notes" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="For example: I used extra time or a keyboard-only workflow." /></label>{latest ? <div className="notice" style={{ marginTop: 18 }}><strong>Previous attempt: {latest.total_points ? Math.round((latest.score / latest.total_points) * 100) : 0}%</strong><br />You can retake the assessment when your skills change.</div> : null}</aside></div>
+    <div className="page-heading"><div><p className="eyebrow">Occupational skills assessment</p><h1>Show your job skills.</h1><p>This job-specific quiz is separate from RAND-36 health results.</p></div><div className="notice"><Clock3 size={15} aria-hidden="true" /> No visible timer</div></div>
+    <section className="panel" aria-labelledby="assessment-category-heading">
+        <div className="panel-header"><div><h2 id="assessment-category-heading">Occupational skills assessment</h2><p>Job-related questions verify skills.</p></div><Info size={20} aria-hidden="true" /></div>
+      {jobs.length ? <label className="field" htmlFor="assessment-job-select"><span>Choose an opening to assess</span><select className="select" id="assessment-job-select" value={jobId} onChange={(event) => chooseJob(event.target.value)}><option value="">Choose an opening</option>{jobs.map((job) => <option key={job.id} value={job.id}>{job.title} / {job.assessment_category}</option>)}</select></label> : categories.length ? <label className="field" htmlFor="assessment-category-select"><span>Choose an assessment category</span><select className="select" id="assessment-category-select" value={category} onChange={(event) => chooseCategory(event.target.value)}><option value="">Choose a category</option>{categories.map((item) => <option key={item} value={item}>{item}</option>)}</select></label> : null}
+      {(jobId || category) && loading ? <p className="field-help" role="status">Randomizing questions...</p> : null}
+      {!jobs.length && !categories.length ? <p className="field-help">No employer assessment openings are available yet.</p> : null}
+    </section>
+    {error ? <div className="form-error" role="alert">{error}</div> : null}
+    {selectedCategory && !questions.length && !loading ? <div className="empty-state"><h3>No questions are available for this category.</h3><p>Choose another category or ask the employer to add questions.</p></div> : null}
+    {questions.length ? <div className="assessment-layout"><section className="assessment-card" aria-labelledby="question-heading"><div className="assessment-progress"><span>Question {index + 1} of {questions.length}</span><div className="meter" role="progressbar" aria-label={`Question ${index + 1} of ${questions.length}`} aria-valuenow={index + 1} aria-valuemin={1} aria-valuemax={questions.length}><span style={{ width: `${((index + 1) / questions.length) * 100}%` }} /></div><span>{answeredCount}/{questions.length} answered</span></div><p className="question-number">{selectedCategory}</p><h2 id="question-heading" ref={questionHeadingRef} tabIndex={-1}>{current.prompt}</h2><fieldset className="option-list" style={{ border: 0, padding: 0, margin: 0 }}><legend className="sr-only">Select one answer</legend>{current.options.map((option, optionIndex) => <div className="option" key={`${option}-${optionIndex}`}><input id={`question-${current.id}-${optionIndex}`} type="radio" name={`question-${current.id}`} checked={answers[current.id] === option} onChange={() => setAnswers((previous) => ({ ...previous, [current.id]: option }))} /><label htmlFor={`question-${current.id}-${optionIndex}`}>{option}</label></div>)}</fieldset><div className="assessment-actions"><button className="button secondary small" type="button" disabled={index === 0} onClick={() => setIndex((value) => Math.max(0, value - 1))}><ArrowLeft size={15} aria-hidden="true" /> Previous</button>{isLast ? <button className="button small" type="button" disabled={pending} onClick={() => void submit()}>{pending ? 'Scoring...' : 'Submit assessment'} <CheckCircle2 size={15} aria-hidden="true" /></button> : <button className="button small" type="button" onClick={() => setIndex((value) => Math.min(questions.length - 1, value + 1))}>Next <ArrowRight size={15} aria-hidden="true" /></button>}</div><div className="sr-status" role="status" aria-live="polite" aria-atomic="true">{error}</div></section><aside className="panel" aria-labelledby="assessment-support-heading"><div className="panel-header"><div><h2 id="assessment-support-heading">Assessment support</h2><p>Choose the access details that help you participate.</p></div><Info size={20} aria-hidden="true" /></div><label className="field" htmlFor="assessment-notes"><span>Accommodation notes <small>(optional)</small></span><textarea className="textarea" id="assessment-notes" value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={500} placeholder="For example: I prefer written instructions and extra reading time." /></label>{latest ? <div className="notice" style={{ marginTop: 16 }}><strong>Latest attempt: {latest.assessment_category || 'Assessment'}</strong><span> {latest.score} of {latest.total_points} points.</span></div> : null}<p className="field-help" style={{ marginTop: 16 }}>Your category result updates the same verified skill signals used by job recommendations.</p></aside></div> : null}
   </>;
 }

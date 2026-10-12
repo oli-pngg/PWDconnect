@@ -1,6 +1,7 @@
 import { getApplicationAccess } from '@/lib/application-access';
 import { getAuthenticatedContext } from '@/lib/auth';
 import { jsonError, jsonOk } from '@/lib/http';
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 
 const statuses = new Set(['accepted', 'declined', 'withdrawn']);
@@ -13,6 +14,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   try {
     const { user } = await getAuthenticatedContext();
     if (!user) return jsonError('Authentication required.', 401);
+    const limited = checkRateLimit(request, 'offer-response-write', { limit: 20, windowMs: 60 * 60 * 1000 }, user.id);
+    if (!limited.allowed) return rateLimitResponse(limited.retryAfterSeconds);
     const { id } = await context.params;
     if (!validUuid(id)) return jsonError('Invalid offer.', 400);
     const body = await request.json() as { status?: unknown };
@@ -41,7 +44,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
     if (status === 'accepted') {
       const { data: application, error: applicationError } = await admin.from('applications').update({ status: 'hired' } as never).eq('id', access.applicationId).in('status', ['submitted', 'shortlisted', 'interview']).select('id, status').maybeSingle();
-      if (applicationError || !application) return jsonError('The offer was accepted, but the application status could not be updated.', 500);
+      if (applicationError || !application) {
+        await admin.from('job_offers').update({ status: 'pending', responded_at: null } as never).eq('id', id).eq('status', 'accepted');
+        return jsonError('The offer could not be completed. No status was changed.', 500);
+      }
     }
     return jsonOk({ offer: data, applicationStatus: status === 'accepted' ? 'hired' : access.applicationStatus });
   } catch {

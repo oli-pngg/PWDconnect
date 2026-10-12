@@ -45,3 +45,8 @@ export function safeInteger(value: unknown, fallback = 0) {
   if (!Number.isFinite(number)) return fallback;
   return Math.trunc(number);
 }
+
+export function bodyTooLarge(request: Request, maxBytes: number) {
+  const length = Number(request.headers.get('content-length'));
+  return Number.isFinite(length) && length > maxBytes;
+}

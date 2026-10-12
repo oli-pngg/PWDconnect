@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { DashboardSkeleton } from '@/components/skeleton';
 import { StatusPill } from '@/components/status-pill';
+import { RAND36_SCALES } from '@/lib/rand36';
 import type { Job } from '@/lib/types';
 
 type DashboardData = {
@@ -17,6 +18,15 @@ type DashboardData = {
   jobs?: Array<{ id: string; title: string; status: string; created_at: string }>;
 };
 
+type Rand36Summary = {
+  consentGranted?: boolean;
+  latestAttempt?: {
+    health_change_response: number | null;
+    health_change_score: number | null;
+    scales: Array<{ scale_code: string; score: number | null; answered_items: number; item_count: number }>;
+  } | null;
+};
+
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value));
 }
@@ -25,24 +35,28 @@ function StatCard({ label, value, note }: { label: string; value: number | strin
   return <article className="stat-card"><span>{label}</span><strong>{value}</strong><small>{note}</small></article>;
 }
 
-function CandidateDashboard({ data }: { data: DashboardData }) {
+function CandidateDashboard({ data, rand36, rand36Unavailable }: { data: DashboardData; rand36: Rand36Summary | null; rand36Unavailable: boolean }) {
   const profileName = data.profile.full_name || 'there';
   const recommendations = data.recommendations ?? [];
   const applications = data.applications ?? [];
   return (
     <>
-      <div className="page-heading"><div><p className="eyebrow">Your workspace</p><h1>Good to see you, {profileName.split(' ')[0]}.</h1><p></p></div><Link className="button" href="/jobs">Explore openings <ArrowUpRight size={16} aria-hidden="true" /></Link></div>
+       <div className="page-heading"><div><p className="eyebrow">Workspace</p><h1>Welcome back, {profileName.split(' ')[0]}.</h1></div><Link className="button" href="/jobs">Find work <ArrowUpRight size={16} aria-hidden="true" /></Link></div>
       <div className="stat-grid">
         <StatCard label="Recommended fits" value={data.stats.matches ?? 0} note="based on your current skills" />
-        <StatCard label="Verified skills" value={data.stats.skills ?? 0} note="assessment or profile" />
+        <StatCard label="Verified skills" value={data.stats.skills ?? 0} note="assessment evidence" />
         <StatCard label="Applications" value={data.stats.applications ?? 0} note="recent applications" />
-        <StatCard label="Assessment score" value={`${data.stats.assessment ?? 0}%`} note={data.latestAssessment ? 'latest attempt' : 'not completed yet'} />
+        <StatCard label="Occupational quiz" value={`${data.stats.assessment ?? 0}%`} note={data.latestAssessment ? 'latest attempt' : 'not completed'} />
       </div>
-      <div className="content-grid">
-        <section className="panel" aria-labelledby="recommendations-heading"><div className="panel-header"><div><h2 id="recommendations-heading">Recommended for your strengths</h2><p>Ranked by skill overlap, verification, and location preference.</p></div><Link className="text-link" href="/jobs">View all</Link></div>{recommendations.length ? <div className="match-list">{recommendations.map((job) => <div className="match-item" key={job.id}><div><h3>{job.title}</h3><p>{job.organization_name ?? 'PWD Connect employer'} / {job.work_mode}</p><div className="match-meta"><span>{job.matched_skills?.slice(0, 3).join(', ') || 'Skill profile needed'}</span><span>{job.application_status ? <StatusPill status={job.application_status} /> : 'Open to applications'}</span></div></div><div className="fit-score" aria-label={`${job.fit_score ?? 0} percent fit`}>{job.fit_score ?? 0}%</div></div>)}</div> : <div className="empty-state"><h3>Your first recommendations are waiting.</h3><p>Complete the skill assessment or add skills to your profile to unlock matches.</p><Link className="button small" href="/assessment">Take assessment</Link></div>}</section>
-        <aside className="panel panel-accent" aria-labelledby="next-step-heading"><div className="panel-header"><div><p className="eyebrow">Next best step</p><h2 id="next-step-heading">Make your profile easier to match.</h2></div><Sparkles size={22} aria-hidden="true" /></div><p className="muted">Employers see verified capabilities first. A complete profile gives the algorithm more useful context without exposing sensitive details in initial screening.</p><ul className="mini-list"><li><CheckCircle2 size={17} aria-hidden="true" /><div><strong>Skills assessment</strong><span>{data.latestAssessment ? `Last completed ${formatDate(data.latestAssessment.completed_at)}` : 'No mandatory countdown'}</span></div></li><li><MapPin size={17} aria-hidden="true" /><div><strong>{data.profile.location || 'Set your location'}</strong><span>Helps surface local opportunities</span></div></li><li><FileText size={17} aria-hidden="true" /><div><strong>Profile story</strong><span>Share the work conditions that help you thrive</span></div></li></ul><Link className="button secondary" href={data.latestAssessment ? '/profile' : '/assessment'}>{data.latestAssessment ? 'Review profile' : 'Start assessment'} <ArrowUpRight size={15} aria-hidden="true" /></Link></aside>
-      </div>
-       <section className="panel" style={{ marginTop: 18 }} aria-labelledby="applications-heading"><div className="panel-header"><div><h2 id="applications-heading">Recent applications</h2><p>Only you can access the details of your applications.</p></div><BriefcaseBusiness size={20} aria-hidden="true" /></div>{applications.length ? <div className="table-wrap"><table className="data-table" aria-label="Recent applications"><thead><tr><th scope="col">Opening</th><th scope="col">Fit</th><th scope="col">Status</th><th scope="col">Applied</th><th scope="col"><span className="sr-only">Conversation</span></th></tr></thead><tbody>{applications.map((application) => <tr key={application.id}><td><strong>{application.jobs?.title ?? 'Opening'}</strong></td><td>{Math.round(Number(application.fit_score))}%</td><td><StatusPill status={application.status} /></td><td>{formatDate(application.created_at)}</td><td><Link className="text-link" href={`/applications/${application.id}`}>Open messages</Link></td></tr>)}</tbody></table></div> : <div className="empty-state"><h3>No applications yet.</h3><p>Your application history will appear here after you apply to an opening.</p><Link className="button secondary small" href="/jobs">Browse jobs</Link></div>}</section>
+       <div className="content-grid">
+         <section className="panel" aria-labelledby="recommendations-heading"><div className="panel-header"><div><h2 id="recommendations-heading">Recommended for your strengths</h2><p>Ranked by skill overlap, verification, and location preference.</p></div><Link className="text-link" href="/jobs">View all</Link></div>{recommendations.length ? <div className="match-list">{recommendations.map((job) => <div className="match-item" key={job.id}><div><h3>{job.title}</h3><p>{job.organization_name ?? 'PWD Connect employer'} / {job.work_mode}</p><div className="match-meta"><span>{job.matched_skills?.slice(0, 3).join(', ') || 'Skill profile needed'}</span><span>{job.application_status ? <StatusPill status={job.application_status} /> : 'Open to applications'}</span></div></div><div className="fit-score" aria-label={`${job.fit_score ?? 0} percent fit`}>{job.fit_score ?? 0}%</div></div>)}</div> : <div className="empty-state"><h3>Your first recommendations are waiting.</h3><p>Complete the accessible skill assessment to unlock evidence-based matches.</p><Link className="button small" href="/assessment">Take assessment</Link></div>}</section>
+         <aside className="panel panel-accent" aria-labelledby="next-step-heading"><div className="panel-header"><div><p className="eyebrow">Next step</p><h2 id="next-step-heading">Strengthen your match.</h2></div><Sparkles size={22} aria-hidden="true" /></div><p className="muted">Verified skills improve job matches.</p><ul className="mini-list"><li><CheckCircle2 size={17} aria-hidden="true" /><div><strong>Assessment</strong><span>{data.latestAssessment ? `Last: ${formatDate(data.latestAssessment.completed_at)}` : 'No timer'}</span></div></li><li><MapPin size={17} aria-hidden="true" /><div><strong>{data.profile.location || 'Set location'}</strong><span>Local matches</span></div></li><li><FileText size={17} aria-hidden="true" /><div><strong>Profile</strong><span>Work conditions</span></div></li></ul><Link className="button secondary" href={data.latestAssessment ? '/profile' : '/assessment'}>{data.latestAssessment ? 'Review profile' : 'Take assessment'} <ArrowUpRight size={15} aria-hidden="true" /></Link></aside>
+       </div>
+       <section className="panel" style={{ marginTop: 18 }} aria-labelledby="rand36-overview-heading">
+         <div className="panel-header"><div><h2 id="rand36-overview-heading">RAND-36 health scales</h2><p>Separate health-related quality-of-life results. Not used to rank jobs.</p></div><Link className="text-link" href="/assessment">Open assessments</Link></div>
+         {rand36Unavailable ? <p className="notice" role="status">RAND-36 results are unavailable until the database migration is applied.</p> : rand36?.latestAttempt ? <><div className="table-wrap"><table className="data-table"><caption className="sr-only">RAND-36 Version 1.0 scale scores, with higher values indicating more favorable health status</caption><thead><tr><th scope="col">Scale</th><th scope="col">Score / 100</th><th scope="col">Items answered</th></tr></thead><tbody>{rand36.latestAttempt.scales.map((scale) => <tr key={scale.scale_code}><th scope="row">{RAND36_SCALES.find((item) => item.code === scale.scale_code)?.label ?? scale.scale_code}</th><td>{scale.score == null ? 'Not scored' : Number(scale.score).toFixed(2)}</td><td>{scale.answered_items} / {scale.item_count}</td></tr>)}</tbody></table></div><p className="field-help">Health change compared with one year ago: {rand36.latestAttempt.health_change_score == null ? 'Not answered' : `${Number(rand36.latestAttempt.health_change_score).toFixed(2)} / 100 (separate item)`}. No overall score is calculated.</p></> : <div className="empty-state"><h3>No RAND-36 result yet.</h3><p>This voluntary health survey is separate from occupational skills.</p><Link className="button secondary small" href="/assessment">Review assessments</Link></div>}
+       </section>
+        <section className="panel" style={{ marginTop: 18 }} aria-labelledby="applications-heading"><div className="panel-header"><div><h2 id="applications-heading">Recent applications</h2><p>Only you can access the details of your applications.</p></div><BriefcaseBusiness size={20} aria-hidden="true" /></div>{applications.length ? <div className="table-wrap"><table className="data-table" aria-label="Recent applications"><thead><tr><th scope="col">Opening</th><th scope="col">Fit</th><th scope="col">Status</th><th scope="col">Applied</th><th scope="col"><span className="sr-only">Conversation</span></th></tr></thead><tbody>{applications.map((application) => <tr key={application.id}><td><strong>{application.jobs?.title ?? 'Opening'}</strong></td><td>{Math.round(Number(application.fit_score))}%</td><td><StatusPill status={application.status} /></td><td>{formatDate(application.created_at)}</td><td><Link className="text-link" href={`/applications/${application.id}`}>Open messages</Link></td></tr>)}</tbody></table></div> : <div className="empty-state"><h3>No applications yet.</h3><p>Your application history will appear here after you apply to an opening.</p><Link className="button secondary small" href="/jobs">Browse jobs</Link></div>}</section>
     </>
   );
 }
@@ -70,6 +84,8 @@ function AdminDashboard({ data }: { data: DashboardData }) {
 export function DashboardView() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState('');
+  const [rand36, setRand36] = useState<Rand36Summary | null>(null);
+  const [rand36Unavailable, setRand36Unavailable] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -83,7 +99,20 @@ export function DashboardView() {
     return () => { active = false; };
   }, []);
 
+  useEffect(() => {
+    if (data?.role !== 'candidate') return;
+    let active = true;
+    fetch('/api/rand36', { cache: 'no-store' }).then(async (response) => {
+      const payload = await response.json() as Rand36Summary & { error?: string };
+      if (!response.ok) throw new Error(payload.error || 'RAND-36 unavailable.');
+      if (active) setRand36(payload);
+    }).catch(() => {
+      if (active) setRand36Unavailable(true);
+    });
+    return () => { active = false; };
+  }, [data?.role]);
+
   if (error) return <div className="form-error" role="alert">{error}</div>;
   if (!data) return <DashboardSkeleton />;
-  return data.role === 'candidate' ? <CandidateDashboard data={data} /> : data.role === 'admin' ? <AdminDashboard data={data} /> : <EmployerDashboard data={data} />;
+  return data.role === 'candidate' ? <CandidateDashboard data={data} rand36={rand36} rand36Unavailable={rand36Unavailable} /> : data.role === 'admin' ? <AdminDashboard data={data} /> : <EmployerDashboard data={data} />;
 }

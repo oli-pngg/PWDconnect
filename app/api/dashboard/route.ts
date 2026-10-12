@@ -18,17 +18,20 @@ export async function GET(request: Request) {
       const [jobs, skills, applicationsResult, attemptResult] = await Promise.all([
         getVisibleJobs(supabase, { userId: user.id }),
         getCandidateSkills(supabase, user.id),
-        supabase.from('applications').select('id, job_id, status, fit_score, created_at, jobs(title)').eq('candidate_id', user.id).order('created_at', { ascending: false }).limit(5),
+        supabase.from('applications').select('id, job_id, status, fit_score, created_at, jobs(title)', { count: 'exact' }).eq('candidate_id', user.id).order('created_at', { ascending: false }).limit(5),
         supabase.from('assessment_attempts').select('score, total_points, completed_at').eq('candidate_id', user.id).order('completed_at', { ascending: false }).limit(1).maybeSingle()
       ]);
-      const ranked = rankJobs(jobs, skills, profile.location ?? undefined).filter((job) => (job.fit_score ?? 0) >= 40).slice(0, 4);
+      const ranked = rankJobs(jobs, skills, profile.location ?? undefined)
+        .filter((job) => job.has_verified_evidence && (job.fit_score ?? 0) >= 40)
+        .slice(0, 4);
       const ids = ranked.map((job) => job.id);
       const { data: existingApplications } = ids.length ? await supabase.from('applications').select('job_id, status').eq('candidate_id', user.id).in('job_id', ids) : { data: [] };
       const applicationMap = new Map((existingApplications ?? []).map((application) => [application.job_id, application.status]));
+      const verifiedSkills = skills.filter((skill) => skill.source === 'assessment_verified' && skill.proficiency >= 3);
       return jsonOk({
         role: 'candidate',
         profile,
-        stats: { skills: skills.length, applications: (applicationsResult.data ?? []).length, assessment: attemptResult.data?.total_points ? Math.round((attemptResult.data.score / attemptResult.data.total_points) * 100) : 0, matches: ranked.length },
+        stats: { skills: verifiedSkills.length, applications: applicationsResult.count ?? 0, assessment: attemptResult.data?.total_points ? Math.round((attemptResult.data.score / attemptResult.data.total_points) * 100) : 0, matches: ranked.length },
         recommendations: ranked.map((job) => ({ ...job, application_status: applicationMap.get(job.id) ?? null })),
         applications: applicationsResult.data ?? [],
         latestAssessment: attemptResult.data ?? null
@@ -50,11 +53,14 @@ export async function GET(request: Request) {
     const { data: jobs, error: jobsError } = await supabase.from('jobs').select('id, title, status, created_at').eq('employer_id', user.id).order('created_at', { ascending: false });
     if (jobsError) return jsonError('Unable to load employer dashboard.', 500);
     const jobIds = (jobs ?? []).map((job) => job.id);
-    const { data: applications } = jobIds.length ? await supabase.from('applications').select('id, job_id, fit_score, status, matched_skills, created_at').in('job_id', jobIds).order('fit_score', { ascending: false }).limit(12) : { data: [] };
+    const [{ data: applications, count: applicationCount }, { count: activeCount }] = jobIds.length ? await Promise.all([
+      supabase.from('applications').select('id, job_id, fit_score, status, matched_skills, created_at', { count: 'exact' }).in('job_id', jobIds).order('fit_score', { ascending: false }).limit(12),
+      supabase.from('applications').select('id', { count: 'exact', head: true }).in('job_id', jobIds).in('status', ['shortlisted', 'interview'])
+    ]) : [{ data: [], count: 0 }, { count: 0 }];
     return jsonOk({
       role: profile.role,
       profile,
-      stats: { jobs: jobs?.length ?? 0, published: (jobs ?? []).filter((job) => job.status === 'published').length, applicants: applications?.length ?? 0, shortlisted: (applications ?? []).filter((application) => application.status === 'shortlisted' || application.status === 'interview').length },
+      stats: { jobs: jobs?.length ?? 0, published: (jobs ?? []).filter((job) => job.status === 'published').length, applicants: applicationCount ?? 0, shortlisted: activeCount ?? 0 },
       jobs: jobs ?? [],
       applications: applications ?? []
     });

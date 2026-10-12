@@ -1,6 +1,7 @@
 import { getApplicationAccess } from '@/lib/application-access';
 import { getAuthenticatedContext } from '@/lib/auth';
-import { cleanText, jsonError, jsonOk } from '@/lib/http';
+import { bodyTooLarge, cleanText, jsonError, jsonOk } from '@/lib/http';
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 
 function validUuid(value: string) {
@@ -11,6 +12,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   try {
     const { user } = await getAuthenticatedContext();
     if (!user) return jsonError('Authentication required.', 401);
+    const limited = checkRateLimit(_request, 'application-messages-read', { limit: 60, windowMs: 60 * 1000 }, user.id);
+    if (!limited.allowed) return rateLimitResponse(limited.retryAfterSeconds);
     const { id } = await context.params;
     if (!validUuid(id)) return jsonError('Invalid application.', 400);
 
@@ -20,7 +23,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const admin = createSupabaseAdminClient();
     await admin.from('messages').update({ read_at: new Date().toISOString() } as never).eq('application_id', id).neq('sender_id', user.id).is('read_at', null);
     const [{ data: messages, error: messagesError }, { data: offer, error: offerError }] = await Promise.all([
-      admin.from('messages').select('id, application_id, sender_id, body, read_at, created_at').eq('application_id', id).order('created_at', { ascending: true }).limit(200),
+      admin.from('messages').select('id, application_id, sender_id, body, read_at, created_at').eq('application_id', id).order('created_at', { ascending: false }).limit(200),
       admin.from('job_offers').select('id, application_id, job_id, employer_id, candidate_id, message, compensation, start_date, status, created_at, responded_at').eq('application_id', id).maybeSingle()
     ]);
     if (messagesError || offerError) return jsonError('Unable to load this conversation.', 500);
@@ -35,7 +38,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
         status: access.applicationStatus,
         participantLabel: access.participantLabel
       },
-      messages: messages ?? [],
+      messages: [...(messages ?? [])].reverse(),
       offer: offer ?? null
     });
   } catch {
@@ -47,6 +50,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   try {
     const { user } = await getAuthenticatedContext();
     if (!user) return jsonError('Authentication required.', 401);
+    if (bodyTooLarge(request, 16 * 1024)) return jsonError('Message is too large.', 413);
+    const limited = checkRateLimit(request, 'application-messages-write', { limit: 20, windowMs: 10 * 60 * 1000 }, user.id);
+    if (!limited.allowed) return rateLimitResponse(limited.retryAfterSeconds);
     const { id } = await context.params;
     if (!validUuid(id)) return jsonError('Invalid application.', 400);
     const access = await getApplicationAccess(user.id, id);

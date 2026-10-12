@@ -51,12 +51,17 @@ export type Job = {
   salary_min: number | null;
   salary_max: number | null;
   accommodations: string | null;
+  assessment_category: string;
   status: JobStatus;
   created_at: string;
   job_skills?: JobSkill[];
   organization_name?: string | null;
   fit_score?: number;
   matched_skills?: string[];
+  missing_skills?: string[];
+  verified_skills?: string[];
+  has_verified_evidence?: boolean;
+  assessment_required?: boolean;
   match_reason?: string;
   application_status?: ApplicationStatus | null;
 };
@@ -70,6 +75,8 @@ export type CandidateSkill = {
 
 export type AssessmentQuestion = {
   id: string;
+  job_id?: string | null;
+  assessment_category: string;
   skill_id: string;
   prompt: string;
   options: string[];
@@ -84,6 +91,10 @@ export type CandidatePreview = {
   candidate_ref: string;
   fit_score: number;
   matched_skills: string[];
+  missing_skills?: string[];
+  verified_skills?: string[];
+  has_verified_evidence?: boolean;
+  match_reason?: string;
   status: ApplicationStatus;
   created_at: string;
 };

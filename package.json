@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build --turbopack",
     "start": "node .next/standalone/server.js",
+    "test": "node --experimental-default-type=module --experimental-strip-types --test tests/*.test.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },

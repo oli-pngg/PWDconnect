@@ -8,7 +8,7 @@ begin
       and conrelid = 'public.profiles'::regclass
   ) then
     alter table public.profiles add constraint profiles_disability_types_check check (
-      disability_types <@ array['visual', 'hearing', 'speech', 'multiple', 'other', 'prefer_not_to_say']::text[]
+       disability_types <@ array['visual', 'hearing', 'speech', 'multiple', 'other']::text[]
     );
   end if;
 end;
@@ -29,7 +29,7 @@ declare
   safe_disability_types text[] := coalesce(array(
     select value
     from jsonb_array_elements_text(coalesce(new.raw_user_meta_data -> 'disability_types', '[]'::jsonb)) as value
-    where value in ('visual', 'hearing', 'speech', 'multiple', 'other', 'prefer_not_to_say')
+       where value in ('visual', 'hearing', 'speech', 'multiple', 'other')
   ), '{}');
 begin
   insert into public.profiles (id, email, role, full_name, disability_types)

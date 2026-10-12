@@ -16,7 +16,9 @@ export async function GET(request: Request) {
       getVisibleJobs(supabase, { userId: user.id }),
       getCandidateSkills(supabase, user.id)
     ]);
-    const ranked = rankJobs(jobs, skills, profile.location ?? undefined).filter((job) => (job.fit_score ?? 0) >= 40).slice(0, 8);
+    const ranked = rankJobs(jobs, skills, profile.location ?? undefined)
+      .filter((job) => job.has_verified_evidence && (job.fit_score ?? 0) >= 40)
+      .slice(0, 8);
     const ids = ranked.map((job) => job.id);
     const { data: applications } = ids.length ? await supabase.from('applications').select('job_id, status').eq('candidate_id', user.id).in('job_id', ids) : { data: [] };
     const applicationMap = new Map((applications ?? []).map((application) => [application.job_id, application.status]));

@@ -1,5 +1,5 @@
-import { AssessmentView } from '@/components/assessment-view';
+import { AssessmentCenter } from '@/components/assessment-center';
 
 export default function AssessmentPage() {
-  return <AssessmentView />;
+  return <AssessmentCenter />;
 }

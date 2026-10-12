@@ -1,7 +1,8 @@
 import { getAuthenticatedContext } from '@/lib/auth';
-import { cleanText, jsonError, jsonOk } from '@/lib/http';
+import { bodyTooLarge, cleanText, jsonError, jsonOk } from '@/lib/http';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
+import { getProfilePhotoUrl } from '@/lib/profile-photo';
 
 const bucket = 'profile-photos';
 const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -13,7 +14,16 @@ function extensionFor(type: string) {
   return 'jpg';
 }
 
+async function hasImageSignature(file: File) {
+  const bytes = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+  const startsWith = (...values: number[]) => values.every((value, index) => bytes[index] === value);
+  if (file.type === 'image/jpeg') return startsWith(0xff, 0xd8, 0xff);
+  if (file.type === 'image/png') return startsWith(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a);
+  return startsWith(0x52, 0x49, 0x46, 0x46) && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50;
+}
+
 export async function POST(request: Request) {
+  if (bodyTooLarge(request, 6 * 1024 * 1024)) return jsonError('Photo upload is too large.', 413);
   const limited = checkRateLimit(request, 'profile-photo-write', { limit: 10, windowMs: 60 * 60 * 1000 });
   if (!limited.allowed) return rateLimitResponse(limited.retryAfterSeconds);
   try {
@@ -24,6 +34,7 @@ export async function POST(request: Request) {
     if (!(file instanceof File)) return jsonError('Choose a profile photo first.');
     if (!allowedTypes.has(file.type)) return jsonError('Use a JPG, PNG, or WebP image.');
     if (file.size <= 0 || file.size > maxBytes) return jsonError('Your profile photo must be smaller than 5 MB.');
+    if (!(await hasImageSignature(file))) return jsonError('The uploaded file is not a valid image.');
 
     const profileResult = await supabase.from('profiles').select('full_name, organization_name, profile_photo_path').eq('id', user.id).maybeSingle();
     const profileData = profileResult.data as unknown as { full_name: string; organization_name: string | null; profile_photo_path: string | null } | null;
@@ -38,12 +49,11 @@ export async function POST(request: Request) {
     });
     if (upload.error) return jsonError('The photo could not be uploaded. Run the profile photo migration, then try again.', 500);
 
-    const { data: publicUrl } = admin.storage.from(bucket).getPublicUrl(path);
     const fallbackName = profileData.organization_name || profileData.full_name || 'profile';
     const altText = cleanText(formData.get('altText'), 160) || `Profile photo of ${fallbackName}`;
     const { data: profile, error: updateError } = await admin
       .from('profiles')
-      .update({ profile_photo_url: publicUrl.publicUrl, profile_photo_alt: altText, profile_photo_path: path } as never)
+      .update({ profile_photo_url: null, profile_photo_alt: altText, profile_photo_path: path } as never)
       .eq('id', user.id)
       .select('id, profile_photo_url, profile_photo_alt, profile_photo_path')
       .single();
@@ -55,7 +65,8 @@ export async function POST(request: Request) {
     if (profileData.profile_photo_path) {
       await admin.storage.from(bucket).remove([profileData.profile_photo_path]);
     }
-    return jsonOk({ profile });
+    const savedProfile = profile as unknown as { id: string; profile_photo_url: string | null; profile_photo_alt: string | null; profile_photo_path: string | null };
+    return jsonOk({ profile: { ...savedProfile, profile_photo_url: await getProfilePhotoUrl(path) } });
   } catch {
     return jsonError('The profile photo could not be uploaded.', 500);
   }

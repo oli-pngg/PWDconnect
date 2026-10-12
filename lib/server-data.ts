@@ -6,7 +6,7 @@ import type { CandidateSkill, Job } from '@/lib/types';
 
 type QueryClient = SupabaseClient;
 
-const jobSelect = 'id, employer_id, title, description, location, work_mode, employment_type, salary_min, salary_max, accommodations, status, created_at, job_skills(skill_id, required_level, importance, skills(id, slug, name, category))';
+const jobSelect = 'id, employer_id, title, description, location, work_mode, employment_type, salary_min, salary_max, accommodations, assessment_category, status, created_at, job_skills(skill_id, required_level, importance, skills(id, slug, name, category))';
 
 function escapeLike(value: string) {
   return value.replace(/[\\%_]/g, (character) => `\\${character}`);
@@ -16,7 +16,7 @@ export async function getVisibleJobs(
   supabase: QueryClient,
   options: { userId: string; search?: string; workMode?: string; mine?: boolean }
 ) {
-  let query = supabase.from('jobs').select(jobSelect).order('created_at', { ascending: false });
+  let query = supabase.from('jobs').select(jobSelect).order('created_at', { ascending: false }).limit(100);
 
   if (options.mine) {
     query = query.eq('employer_id', options.userId);

@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { createClient } from '@supabase/supabase-js';
-import { getServerSupabaseEnv } from '@/lib/env';
+import { getServerSupabaseEnv } from '@/lib/server-env';
 
 let client: ReturnType<typeof createClient> | undefined;
 

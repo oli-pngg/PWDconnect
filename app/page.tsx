@@ -72,12 +72,12 @@ export default function HomePage() {
         </section>
 
         <section className="section dark" id="standards" aria-labelledby="standards-heading">
-          <div className="page-width standards-grid">
-            <div><p className="eyebrow"></p><h2 id="standards-heading">{t('accessStarting')}</h2><p>PWD Connect works with screen readers and keyboards. You can use larger text, high contrast, captions, and less motion. Clear messages help you fix errors.</p></div>
+           <div className="page-width standards-grid">
+             <div><p className="eyebrow"></p><h2 id="standards-heading">{t('accessStarting')}</h2><p>Keyboard, screen reader, captions, high contrast, and reduced motion support.</p></div>
             <div className="standard-list" role="list" aria-label="Accessibility commitments">
-              <div className="standard-row" role="listitem"><strong>Easy to notice</strong><span>Important information is available as text, with clear headings and good color contrast.</span></div>
-              <div className="standard-row" role="listitem"><strong>Easy to use</strong><span>You can use every part with a keyboard. Buttons are clear and there are no forced time limits.</span></div>
-              <div className="standard-row" role="listitem"><strong>Easy to understand</strong><span>We use plain words, clear labels, helpful instructions, and simple error messages.</span></div>
+               <div className="standard-row" role="listitem"><strong>Visible</strong><span>Clear text, headings, and contrast.</span></div>
+               <div className="standard-row" role="listitem"><strong>Operable</strong><span>Keyboard support and no forced timer.</span></div>
+               <div className="standard-row" role="listitem"><strong>Clear</strong><span>Short labels and helpful errors.</span></div>
             </div>
           </div>
         </section>
