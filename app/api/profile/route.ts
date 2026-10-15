@@ -3,9 +3,11 @@ import { DISABILITY_VALUES } from '@/lib/disability';
 import { bodyTooLarge, cleanAllowedArray, cleanStringArray, cleanText, cleanUuidArray, jsonError, jsonOk, safeInteger } from '@/lib/http';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { getProfilePhotoUrl } from '@/lib/profile-photo';
+import { GENDER_OPTIONS } from '@/lib/profile-options';
+import { MAX_PROFILE_SKILLS } from '@/lib/skill-rules';
 
-const profileSelect = 'id, email, role, full_name, organization_name, headline, bio, disability_description, location, work_mode, availability, years_experience, disability_types, accessibility_needs, profile_photo_url, profile_photo_alt, profile_photo_path, profile_completed, created_at, updated_at';
-const setupError = 'Profile setup is not ready. Run supabase/migrations/004_accessible_profiles_and_photos.sql in your Supabase project, then sign out and sign in again.';
+const profileSelect = 'id, email, role, full_name, organization_name, gender, headline, bio, disability_description, location, work_mode, availability, years_experience, disability_types, accessibility_needs, profile_photo_url, profile_photo_alt, profile_photo_path, profile_completed, created_at, updated_at';
+const setupError = 'Profile setup is not ready. Run supabase/migrations/004_accessible_profiles_and_photos.sql and 012_profile_gender.sql in your Supabase project, then sign out and sign in again.';
 
 function isSetupError(error: { code?: string; message?: string } | null | undefined) {
   return Boolean(error && ['42703', '42P01', 'PGRST204', 'PGRST205'].includes(error.code ?? '')) || Boolean(error?.message?.toLowerCase().includes('profile_completed'));
@@ -39,7 +41,7 @@ export async function PATCH(request: Request) {
     const { supabase, user } = await getAuthenticatedContext();
     if (!user) return jsonError('Authentication required.', 401);
     const body = await request.json() as Record<string, unknown>;
-    const existing = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+    const existing = await supabase.from('profiles').select('role, gender').eq('id', user.id).maybeSingle();
     if (isSetupError(existing.error)) return jsonError(setupError, 500);
     if (existing.error || !existing.data) return jsonError('Profile not found.', 404);
 
@@ -54,6 +56,11 @@ export async function PATCH(request: Request) {
     const workMode = cleanText(body.workMode, 50) || 'Flexible';
     const availability = cleanText(body.availability, 80) || 'Open to opportunities';
     const yearsExperience = Math.max(0, Math.min(safeInteger(body.yearsExperience), 80));
+    const genderInput = body.gender === undefined ? existing.data.gender ?? '' : cleanText(body.gender, 40);
+    if (role === 'candidate' && genderInput && !GENDER_OPTIONS.some((option) => option.value === genderInput)) {
+      return jsonError('Choose a valid gender option.');
+    }
+    const gender = role === 'candidate' && genderInput ? genderInput : null;
     const accessibilityNeeds = cleanStringArray(body.accessibilityNeeds, 8, 80);
     const profileCompleted = role === 'candidate'
       ? Boolean(fullName && bio && disabilityTypes.length && workMode)
@@ -70,6 +77,7 @@ export async function PATCH(request: Request) {
     const update = {
       full_name: fullName,
       organization_name: organizationName,
+      gender,
       headline,
       bio,
       disability_description: disabilityDescription,
@@ -92,7 +100,9 @@ export async function PATCH(request: Request) {
     if (isSetupError(profileError)) return jsonError(setupError, 500);
     if (profileError) return jsonError('Unable to save your profile.', 500);
 
-    const skillIds = cleanUuidArray(body.skillIds, 20);
+    const requestedSkillIds = Array.isArray(body.skillIds) ? body.skillIds : [];
+    if (requestedSkillIds.length > MAX_PROFILE_SKILLS) return jsonError(`Select no more than ${MAX_PROFILE_SKILLS} skills.`);
+    const skillIds = cleanUuidArray(requestedSkillIds, MAX_PROFILE_SKILLS);
     const { data: currentSkills, error: currentSkillsError } = await supabase
       .from('profile_skills')
       .select('skill_id, proficiency, source, verified_at')

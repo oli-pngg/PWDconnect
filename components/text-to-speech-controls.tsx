@@ -11,7 +11,7 @@ function pageText(): string {
   return (main.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 14000);
 }
 
-export function TextToSpeechControls() {
+export function TextToSpeechControls({ showControls = true }: { showControls?: boolean }) {
   const { language } = useLanguage();
   const [speaking, setSpeaking] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -137,6 +137,14 @@ export function TextToSpeechControls() {
   function stopReading() {
     stopSilent();
     setStatus('Reading stopped.');
+  }
+
+  if (!showControls) {
+    return (
+      <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {status}
+      </span>
+    );
   }
 
   return (

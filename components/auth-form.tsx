@@ -8,11 +8,11 @@ import type { FormEvent } from 'react';
 import { AccessibilityTools } from '@/components/accessibility-tools';
 import { BrandMark } from '@/components/brand-mark';
 import { LanguageSwitcher, useLanguage } from '@/components/language-provider';
-import { TextToSpeechControls } from '@/components/text-to-speech-controls';
 import { VoiceSignupControls } from '@/components/voice-signup-controls';
 import { isSupabaseConfigured } from '@/lib/env';
 import { DISABILITY_OPTIONS } from '@/lib/disability';
 import { safeNext } from '@/lib/navigation';
+import { GENDER_OPTIONS } from '@/lib/profile-options';
 
 type AuthMode = 'login' | 'register';
 type Role = 'candidate' | 'employer';
@@ -24,8 +24,11 @@ const signupDisabilityOptions = DISABILITY_OPTIONS.slice(0, 3);
 
 function friendlyAuthError(message: string) {
   const normalized = message.toLowerCase();
-  if (normalized.includes('rate limit') || normalized.includes('too many') || normalized.includes('email rate')) {
-    return 'Too many attempts were made from this device. Please wait a few minutes, then try again. This safety limit protects every PWD Connect account.';
+  if (normalized.includes('confirmation email') || normalized.includes('email rate')) {
+    return 'The email service is temporarily limiting confirmation messages. Check your inbox or wait a few minutes before trying again.';
+  }
+  if (normalized.includes('rate limit') || normalized.includes('too many')) {
+    return 'Too many sign-up requests were made recently. Please wait a few minutes, then try again.';
   }
   if (normalized.includes('invalid login credentials')) {
     return 'The email or password is incorrect. Check both fields and try again.';
@@ -50,6 +53,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
   const [role, setRole] = useState<Role>('candidate');
   const [organizationName, setOrganizationName] = useState('');
   const [headline, setHeadline] = useState('');
+  const [gender, setGender] = useState('');
   const [bio, setBio] = useState('');
   const [disabilityTypes, setDisabilityTypes] = useState<string[]>([]);
   const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
@@ -109,6 +113,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
         fullName,
         organizationName,
         headline,
+        gender: role === 'candidate' ? gender : '',
         bio,
         disabilityTypes,
         location,
@@ -252,7 +257,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
       <main className="auth-main" id="main-content" tabIndex={-1} aria-label={isLogin ? 'Sign in' : 'Create account'}>
         <div className="auth-main-inner">
           <div className="register-brand"><BrandMark href="/" /></div>
-          <div className="auth-accessibility"><LanguageSwitcher /><AccessibilityTools /><TextToSpeechControls /></div>
+          <div className="auth-accessibility"><LanguageSwitcher /><AccessibilityTools /></div>
            <section className={`auth-card ${isProfileStep ? 'profile-registration-card' : ''}`} aria-labelledby="auth-title">
             <nav className="auth-switch" aria-label="Account actions">
               <Link className={isLogin ? 'active' : ''} href="/login" aria-current={isLogin ? 'page' : undefined}>{t('signIn')}</Link>
@@ -273,8 +278,19 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
                  <div className="profile-step-indicator" data-step-count={profileSteps.length} role="group" aria-label="Profile setup progress"><span>Step {profileStepIndex + 1} of {profileSteps.length}</span><div className="profile-step-list">{profileSteps.map((step, index) => <span className={index === profileStepIndex ? 'active' : index < profileStepIndex ? 'complete' : ''} aria-label={`Step ${index + 1}: ${step === 'identity' ? 'Identity' : step === 'work' ? 'Work' : 'Support'}`} aria-current={index === profileStepIndex ? 'step' : undefined} key={step}>{index + 1}</span>)}</div></div>
 
                  {profileStep === 'identity' ? <><div className="notice profile-account-banner"><strong>{role === 'candidate' ? 'Job seeker' : 'Employer'}</strong><span>{email}</span></div><div className="field-grid three name-fields"><label className="field" htmlFor="profile-first-name"><span>First name</span><input className="input" id="profile-first-name" autoComplete="given-name" value={firstName} onChange={(event) => setFirstName(event.target.value)} maxLength={40} required /></label><label className="field" htmlFor="profile-middle-name"><span>Middle name</span><input className="input" id="profile-middle-name" autoComplete="additional-name" value={middleName} onChange={(event) => setMiddleName(event.target.value)} maxLength={40} /></label><label className="field" htmlFor="profile-last-name"><span>Last name</span><input className="input" id="profile-last-name" autoComplete="family-name" value={lastName} onChange={(event) => setLastName(event.target.value)} maxLength={40} required /></label></div>{role === 'employer' ? <label className="field" htmlFor="organization-name"><span>Organization name <small>(required)</small></span><input className="input" id="organization-name" value={organizationName} onChange={(event) => setOrganizationName(event.target.value)} maxLength={140} required /></label> : <label className="field" htmlFor="academic-level"><span>Academic level</span><select className="select" id="academic-level" value={headline} onChange={(event) => setHeadline(event.target.value)}><option value="">Select academic level</option><option>High school</option><option>Vocational/Technical</option><option>Associate degree</option><option>Bachelor&apos;s degree</option><option>Master&apos;s degree</option><option>Doctorate</option><option>Other</option></select></label>}{role === 'employer' ? <label className="field" htmlFor="profile-headline"><span>Organization headline</span><input className="input" id="profile-headline" value={headline} onChange={(event) => setHeadline(event.target.value)} maxLength={160} placeholder="What kind of work does your organization offer?" /></label> : null}<label className="field profile-long-field" htmlFor="profile-bio"><span>{role === 'employer' ? 'Organization description' : 'Profile description'} <small>(required)</small></span><textarea className="textarea" id="profile-bio" value={bio} onChange={(event) => setBio(event.target.value)} maxLength={1500} required placeholder={role === 'employer' ? 'Describe your team, work, and inclusive hiring approach.' : 'Describe the work you enjoy, tools you use, or strengths you want employers to see.'} /></label></> : null}
-                 {profileStep === 'work' ? <><div className="field-grid two"><label className="field" htmlFor="signup-location"><span>Preferred location</span><input className="input" id="signup-location" value={location} onChange={(event) => setLocation(event.target.value)} maxLength={120} /></label><label className="field" htmlFor="signup-work-mode"><span>Work mode</span><select className="select" id="signup-work-mode" value={workMode} onChange={(event) => setWorkMode(event.target.value)}><option>Flexible</option><option>On-site</option><option>Hybrid</option><option>Remote</option></select></label></div><div className="field-grid two"><label className="field" htmlFor="signup-availability"><span>Availability</span><select className="select" id="signup-availability" value={availability} onChange={(event) => setAvailability(event.target.value)}><option>Open to opportunities</option><option>Available now</option><option>Available within 30 days</option><option>Exploring options</option></select></label><label className="field" htmlFor="signup-years"><span>Years of experience</span><input className="input" id="signup-years" type="number" min="0" max="80" value={yearsExperience} onChange={(event) => setYearsExperience(event.target.value)} /></label></div></> : null}
+                  {profileStep === 'work' ? <><div className="field-grid two"><label className="field" htmlFor="signup-location"><span>Preferred location</span><input className="input" id="signup-location" value={location} onChange={(event) => setLocation(event.target.value)} maxLength={120} /></label><label className="field" htmlFor="signup-work-mode"><span>Work mode</span><select className="select" id="signup-work-mode" value={workMode} onChange={(event) => setWorkMode(event.target.value)}><option>Flexible</option><option>On-site</option><option>Hybrid</option><option>Remote</option></select></label></div><div className="field-grid two"><label className="field" htmlFor="signup-availability"><span>Availability</span><select className="select" id="signup-availability" value={availability} onChange={(event) => setAvailability(event.target.value)}><option>Open to opportunities</option><option>Available now</option><option>Available within 30 days</option><option>Exploring options</option></select></label><label className="field" htmlFor="signup-years"><span>Years of experience</span><input className="input" id="signup-years" type="number" min="0" max="80" value={yearsExperience} onChange={(event) => setYearsExperience(event.target.value)} /></label></div></> : null}
                   {profileStep === 'support' ? <label className="field" htmlFor="profile-photo"><span>Profile picture</span><input className="input" id="profile-photo" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setProfilePhoto(event.target.files?.[0] ?? null)} /><small>JPG, PNG, or WebP. Maximum 5 MB.</small></label> : null}
+                  {profileStep === 'identity' && role === 'candidate' ? (
+                    <label className="field" htmlFor="signup-gender">
+                      <span>{language === 'tl' ? 'Kasarian (opsyonal)' : 'Gender (optional)'}</span>
+                      <select className="select" id="signup-gender" value={gender} onChange={(event) => setGender(event.target.value)}>
+                        <option value="">{language === 'tl' ? 'Pumili ng kasarian (opsyonal)' : 'Select gender (optional)'}</option>
+                        {GENDER_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>{language === 'tl' ? option.tagalog : option.label}</option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
                </>}
                {error ? <div className="form-error" id="auth-error" role="alert">{error}{profileSaveFailed ? <Link className="text-link" href="/profile?setup=1">Open profile setup</Link> : null}</div> : null}
                {notice ? <div className="form-success" role="status">{notice}</div> : null}

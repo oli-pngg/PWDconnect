@@ -1,0 +1,679 @@
+/* Navigation guide: BlindJobs-inspired structure, using PWD Connect's tokens. */
+.navigation-guide-screen {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  min-height: 100vh;
+  min-height: 100svh;
+  flex-direction: column;
+  overflow: hidden;
+  padding: clamp(18px, 3vh, 32px) clamp(18px, 4vw, 64px) 88px;
+  color: var(--ink);
+  background-color: #0d3c34;
+  background-image:
+    radial-gradient(ellipse 56% 52% at 88% 4%, rgba(204, 251, 241, 0.1), transparent 100%),
+    linear-gradient(132deg, #0d3c34 0%, #0f766e 62%, #0d6259 100%);
+  background-position: center, center;
+  background-size: 100% 100%, 100% 100%;
+  background-repeat: no-repeat, no-repeat;
+}
+
+.navigation-guide-screen::before,
+.navigation-guide-screen::after {
+  position: absolute;
+  z-index: -1;
+  content: '';
+  pointer-events: none;
+  border-radius: 50%;
+}
+
+.navigation-guide-screen::before {
+  top: -13vh;
+  right: -6vw;
+  width: min(78vw, 980px);
+  aspect-ratio: 900 / 620;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 900 620' fill='none'%3E%3Cg stroke='%23ccfbf1' stroke-opacity='.25' stroke-width='4' stroke-linecap='round'%3E%3Cpath d='M58 492C180 428 222 301 367 296s223 128 387 50'/%3E%3Cpath d='M116 126c110 24 177 105 251 170'/%3E%3Cpath d='M367 296c100-126 232-202 387-239'/%3E%3Cpath d='M367 296c122 26 229-35 387 50'/%3E%3Cpath d='M116 126c43 139-11 262-58 366'/%3E%3C/g%3E%3Cg fill='%23facc15' fill-opacity='.72'%3E%3Ccircle cx='58' cy='492' r='13'/%3E%3Ccircle cx='116' cy='126' r='13'/%3E%3Ccircle cx='367' cy='296' r='16'/%3E%3Ccircle cx='754' cy='57' r='13'/%3E%3Ccircle cx='754' cy='346' r='13'/%3E%3C/g%3E%3C/svg%3E") center / contain no-repeat;
+  opacity: 0.8;
+}
+
+.navigation-guide-screen::after {
+  bottom: -28vh;
+  left: -13vw;
+  width: min(48vw, 610px);
+  aspect-ratio: 1;
+  border: clamp(34px, 5vw, 72px) solid rgba(204, 251, 241, 0.08);
+  box-shadow: inset 0 0 0 clamp(18px, 2.5vw, 34px) rgba(250, 204, 21, 0.07);
+  transform: rotate(-18deg);
+}
+
+/* The guide displays its reader toggle in the open space of the second panel. */
+body:has(.navigation-guide-screen) .screen-reader-toggle-floating {
+  display: none;
+}
+
+body:has(.navigation-guide-screen) .accessibility-fab {
+  left: clamp(18px, 4vw, 64px);
+  top: 50%;
+  bottom: auto;
+  transform: translateY(-50%);
+}
+
+body:has(.navigation-guide-screen) .accessibility-fab .accessibility-menu summary {
+  width: auto;
+  height: 60px;
+  min-width: 50px;
+  min-height: 60px;
+  padding: 12px 17px;
+  color: var(--teal-dark);
+  background: var(--paper-strong);
+  border: 2px solid var(--teal-dark);
+  border-radius: 999px;
+  box-shadow: 0 5px 16px rgba(15, 23, 42, 0.16);
+  font-size: 0.95rem;
+  gap: 8px;
+}
+
+body:has(.navigation-guide-screen) .accessibility-fab .accessibility-menu summary span {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: 0;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  white-space: nowrap;
+  border: 0;
+}
+
+body:has(.navigation-guide-screen) .accessibility-fab .accessibility-menu summary:hover,
+body:has(.navigation-guide-screen) .accessibility-fab .accessibility-menu[open] summary {
+  color: var(--paper-strong);
+  background: var(--teal-dark);
+  border-color: var(--yellow);
+}
+
+body:has(.navigation-guide-screen) .accessibility-fab .accessibility-panel {
+  left: calc(clamp(18px, 4vw, 64px) + 176px);
+  top: 50%;
+  right: auto;
+  bottom: auto;
+  width: min(420px, calc(100vw - 220px));
+  max-height: calc(100dvh - 32px);
+  transform: translateY(-50%);
+}
+
+.navigation-guide-header {
+  position: relative;
+  display: grid;
+  width: min(1280px, 100%);
+  min-height: 60px;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  margin: 0 auto clamp(14px, 2.2vh, 24px);
+}
+
+.navigation-guide-header > .brand {
+  grid-column: 2;
+  gap: 13px;
+  color: var(--paper-strong);
+  font-size: 1.22rem;
+  letter-spacing: -0.02em;
+}
+
+.navigation-guide-header .brand-mark {
+  width: 46px;
+  height: 46px;
+  color: var(--paper-strong);
+  background: var(--teal);
+  border-radius: 14px 14px 14px 5px;
+  box-shadow: 5px 5px 0 var(--yellow);
+}
+
+.navigation-guide-header .brand-mark svg {
+  width: 22px;
+  height: 22px;
+}
+
+.navigation-guide-header .language-switcher {
+  grid-column: 3;
+  justify-self: end;
+  gap: 9px;
+  color: var(--paper-strong);
+  font-size: 0.85rem;
+}
+
+.navigation-guide-header .language-switcher select {
+  min-width: 112px;
+  min-height: 46px;
+  padding: 8px 12px;
+  color: var(--ink);
+  border-color: var(--paper-strong);
+  border-radius: 10px;
+  font-size: 0.9rem;
+}
+
+.navigation-guide-main {
+  display: flex;
+  width: min(1280px, 100%);
+  flex: 1 0 auto;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+}
+
+.navigation-guide-card {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  padding: clamp(22px, 3vw, 38px);
+  color: var(--ink);
+  background: var(--paper-strong);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-top: 6px solid var(--teal);
+  border-radius: 22px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.8) inset,
+    0 28px 70px rgba(15, 23, 42, 0.28);
+}
+
+.navigation-guide-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  margin: 0 0 12px;
+  padding: 4px 11px;
+  color: var(--teal-dark);
+  background: var(--mint);
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.navigation-guide-card > h1 {
+  max-width: 920px;
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: clamp(2.25rem, 4.8vw, 3.4rem);
+  font-weight: 800;
+  letter-spacing: -0.055em;
+  line-height: 1.04;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.navigation-guide-introduction {
+  max-width: 980px;
+  margin: 12px 0 20px;
+  color: var(--ink-soft);
+  font-size: clamp(1.05rem, 1.6vw, 1.24rem);
+  line-height: 1.55;
+}
+
+.navigation-guide-instructions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: clamp(14px, 2vw, 22px);
+}
+
+.navigation-guide-instructions section {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  padding: clamp(13px, 1.5vw, 17px) clamp(15px, 1.8vw, 20px);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 5px 18px rgba(15, 23, 42, 0.045);
+}
+
+.navigation-guide-instructions .screen-reader-toggle-inline {
+  position: static;
+  z-index: auto;
+  right: auto;
+  bottom: auto;
+  align-self: flex-end;
+  margin-top: auto;
+  padding-top: 16px;
+}
+
+.navigation-guide-instructions h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.08rem;
+  font-weight: 850;
+  letter-spacing: -0.02em;
+}
+
+.navigation-guide-instructions h2 {
+  margin-bottom: 7px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--line);
+}
+
+.navigation-guide-rows {
+  margin: 0;
+}
+
+.navigation-guide-row {
+  display: grid;
+  min-height: 0;
+  grid-template-columns: minmax(150px, 0.85fr) minmax(0, 1.15fr);
+  align-items: center;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.navigation-guide-row:last-child {
+  border-bottom: 0;
+}
+
+.navigation-guide-row dt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.navigation-guide-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.navigation-guide-key-separator {
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.navigation-guide-row kbd {
+  display: inline-flex;
+  min-width: 42px;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 10px;
+  color: var(--ink);
+  background: var(--paper-strong);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  box-shadow: 0 2px 3px rgba(15, 23, 42, 0.1);
+  font-family: inherit;
+  font-size: 0.84rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.navigation-guide-row dd {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.93rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.navigation-guide-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.82fr);
+  align-items: start;
+  gap: 18px;
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+}
+
+.navigation-guide-accessibility {
+  display: flex;
+  max-width: 560px;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.navigation-guide-accessibility .accessibility-menu summary {
+  min-height: 50px;
+  padding: 11px 16px;
+  color: var(--teal-dark);
+  background: var(--paper-strong);
+  border: 2px solid var(--line-strong);
+  border-radius: 11px;
+  font-size: 0.9rem;
+}
+
+.navigation-guide-accessibility .accessibility-menu summary:hover,
+.navigation-guide-accessibility .accessibility-menu[open] summary {
+  color: var(--teal-dark);
+  background: var(--mint);
+  border-color: var(--teal);
+}
+
+.navigation-guide-accessibility .accessibility-panel {
+  position: fixed;
+  z-index: 99;
+  top: auto;
+  right: clamp(16px, 3.2vw, 58px);
+  bottom: 82px;
+  left: auto;
+  width: min(420px, calc(100vw - 32px));
+  max-height: calc(100vh - 100px);
+  max-height: calc(100dvh - 100px);
+}
+
+.navigation-guide-accessibility > p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.navigation-guide-continue {
+  width: 100%;
+  text-align: right;
+}
+
+.navigation-guide-continue button.button {
+  width: 100%;
+  min-height: 54px;
+  padding: 13px 24px;
+  color: var(--paper-strong);
+  background: var(--teal-dark);
+  border: 2px solid var(--teal-dark);
+  border-radius: 12px;
+  box-shadow: 0 5px 15px rgba(15, 118, 110, 0.22);
+  font-size: 1.08rem;
+  font-weight: 850;
+}
+
+.navigation-guide-continue button.button:hover {
+  background: #115e59;
+  border-color: #115e59;
+  box-shadow: 0 7px 20px rgba(15, 118, 110, 0.28);
+}
+
+.navigation-guide-continue p {
+  margin: 9px 0 0;
+  color: var(--ink-soft);
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
+:root[data-contrast='high'] .navigation-guide-card,
+:root[data-contrast='high'] .navigation-guide-instructions section {
+  border-width: 2px;
+  border-color: var(--ink);
+}
+
+:root[data-show-borders='on'] .navigation-guide-card,
+:root[data-show-borders='on'] .navigation-guide-instructions section,
+:root[data-show-borders='on'] .navigation-guide-row,
+:root[data-show-borders='on'] .navigation-guide-row kbd,
+:root[data-show-borders='on'] .navigation-guide-footer,
+:root[data-show-borders='on'] .navigation-guide-accessibility .accessibility-menu summary {
+  border-width: 2px;
+}
+
+:root[data-reduce-transparency='on'] .navigation-guide-screen {
+  background-image: linear-gradient(132deg, #0d3c34 0%, #0f766e 62%, #0d6259 100%);
+}
+
+:root[data-reduce-transparency='on'] .navigation-guide-screen::before,
+:root[data-reduce-transparency='on'] .navigation-guide-screen::after {
+  display: none;
+}
+
+:root[data-contrast='high'] .navigation-guide-screen {
+  background-color: var(--ink);
+  background-image: none;
+}
+
+:root[data-contrast='high'] .navigation-guide-screen::before,
+:root[data-contrast='high'] .navigation-guide-screen::after {
+  display: none;
+}
+
+:root[data-dyslexia='on'] .navigation-guide-card > h1 {
+  font-family: var(--font-body);
+  letter-spacing: -0.01em;
+  line-height: 1.18;
+}
+
+:root[data-spacing='wide'] .navigation-guide-introduction,
+:root[data-spacing='wide'] .navigation-guide-row dd,
+:root[data-spacing='wide'] .navigation-guide-continue p {
+  line-height: 1.85;
+}
+
+:root[data-text-size='large'] .navigation-guide-introduction {
+  font-size: clamp(1.2rem, 1.8vw, 1.4rem);
+}
+
+:root[data-text-size='large'] .navigation-guide-row dt,
+:root[data-text-size='large'] .navigation-guide-row dd,
+:root[data-text-size='large'] .navigation-guide-continue p {
+  font-size: 1rem;
+}
+
+:root[data-text-size='large'] .navigation-guide-instructions h2 {
+  font-size: 1.16rem;
+}
+
+@media (max-width: 900px) {
+  .navigation-guide-screen {
+    padding-right: clamp(16px, 3vw, 32px);
+    padding-left: clamp(16px, 3vw, 32px);
+  }
+
+  .navigation-guide-instructions {
+    grid-template-columns: 1fr;
+  }
+
+  .navigation-guide-footer {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    gap: 18px;
+  }
+
+  .navigation-guide-continue {
+    max-width: 480px;
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 650px) {
+  .navigation-guide-screen {
+    padding: 16px 14px 90px;
+  }
+
+  .navigation-guide-screen::before {
+    top: -4vh;
+    right: -55vw;
+    width: 130vw;
+  }
+
+  .navigation-guide-screen::after {
+    bottom: -20vh;
+    left: -58vw;
+    width: 105vw;
+  }
+
+  body:has(.navigation-guide-screen) .accessibility-fab {
+    right: 12px;
+    left: auto;
+    top: 50%;
+    bottom: auto;
+    transform: translateY(-50%);
+  }
+
+  body:has(.navigation-guide-screen) .accessibility-fab .accessibility-menu summary {
+    width: 52px;
+    height: 52px;
+    min-width: 52px;
+    min-height: 52px;
+    padding: 0;
+    color: var(--paper-strong);
+    background: var(--teal-dark);
+    border: 2px solid var(--paper-strong);
+    border-radius: 50%;
+    box-shadow: 0 6px 18px rgba(23, 43, 55, 0.28);
+    font-size: 0;
+    gap: 0;
+  }
+
+  body:has(.navigation-guide-screen) .accessibility-fab .accessibility-menu summary svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  body:has(.navigation-guide-screen) .accessibility-fab .accessibility-menu summary span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  body:has(.navigation-guide-screen) .accessibility-fab .accessibility-menu[open] summary {
+    width: auto;
+    min-width: 52px;
+    min-height: 48px;
+    height: auto;
+    padding: 8px 10px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    gap: 6px;
+  }
+
+  body:has(.navigation-guide-screen) .accessibility-fab .accessibility-menu[open] summary span {
+    position: static;
+    width: auto;
+    height: auto;
+    padding: 0;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: nowrap;
+    border: 0;
+  }
+
+  body:has(.navigation-guide-screen) .accessibility-fab .accessibility-panel {
+    left: 4px;
+    right: 4px;
+    top: 50%;
+    bottom: auto;
+    width: calc(100vw - 8px);
+    max-width: calc(100vw - 8px);
+    max-height: calc(100dvh - 24px);
+    padding: 10px;
+    transform: translateY(-50%);
+  }
+
+  .navigation-guide-header {
+    display: flex;
+    min-height: auto;
+    flex-direction: column;
+    gap: 17px;
+    margin-bottom: 20px;
+  }
+
+  .navigation-guide-header > .brand {
+    font-size: 1.1rem;
+  }
+
+  .navigation-guide-card {
+    padding: 21px 17px;
+    border-radius: 17px;
+  }
+
+  .navigation-guide-card > h1 {
+    font-size: clamp(2rem, 9vw, 2.6rem);
+  }
+
+  .navigation-guide-introduction {
+    margin-bottom: 17px;
+    font-size: 1rem;
+  }
+
+  .navigation-guide-instructions section {
+    padding: 17px 15px;
+  }
+
+  .navigation-guide-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 7px;
+    padding: 12px 0;
+  }
+
+  .navigation-guide-row dd {
+    font-size: 0.9rem;
+  }
+
+  .navigation-guide-accessibility {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .navigation-guide-accessibility .accessibility-panel {
+    right: 4px;
+    bottom: 76px;
+    left: 4px;
+    width: auto;
+    max-width: calc(100vw - 8px);
+    padding: 10px;
+    max-height: calc(100dvh - 92px);
+  }
+
+  .navigation-guide-continue {
+    text-align: left;
+  }
+}
+
+@media (forced-colors: active) {
+  .navigation-guide-screen {
+    color: CanvasText;
+    background: Canvas;
+  }
+
+  .navigation-guide-card,
+  .navigation-guide-instructions section {
+    color: CanvasText;
+    background: Canvas;
+    border: 2px solid CanvasText;
+    box-shadow: none;
+  }
+
+  .navigation-guide-card > h1,
+  .navigation-guide-instructions h2,
+  .navigation-guide-row dt,
+  .navigation-guide-row dd,
+  .navigation-guide-introduction,
+  .navigation-guide-continue p {
+    color: CanvasText;
+  }
+
+  .navigation-guide-continue button.button {
+    color: ButtonText;
+    background: ButtonFace;
+    border-color: ButtonText;
+    forced-color-adjust: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navigation-guide-card,
+  .navigation-guide-continue button {
+    scroll-behavior: auto;
+    transition: none;
+  }
+}

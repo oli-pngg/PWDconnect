@@ -2,17 +2,17 @@ export const DISABILITY_OPTIONS = [
   {
     value: 'visual',
     label: 'Visual disability',
-    description: 'Screen reader, magnification, contrast, or other visual support'
+    description: ' '
   },
   {
     value: 'hearing',
     label: 'Hearing disability',
-    description: 'Captions, transcripts, visual alerts, or other hearing support'
+    description: ' '
   },
   {
     value: 'speech',
     label: 'Speech disability',
-    description: 'Text-first communication or alternatives to speaking'
+    description: ' '
   },
   {
     value: 'multiple',

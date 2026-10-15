@@ -5,7 +5,7 @@ import type { Profile } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
-const shellProfileSelect = 'id, email, role, full_name, organization_name, headline, bio, disability_description, location, work_mode, availability, years_experience, disability_types, accessibility_needs, profile_photo_url, profile_photo_alt, profile_photo_path, profile_completed, created_at, updated_at';
+const shellProfileSelect = 'id, email, role, full_name, organization_name, gender, headline, bio, disability_description, location, work_mode, availability, years_experience, disability_types, accessibility_needs, profile_photo_url, profile_photo_alt, profile_photo_path, profile_completed, created_at, updated_at';
 
 export default async function ProtectedLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const { supabase, user } = await getAuthenticatedContext();
@@ -36,6 +36,7 @@ export default async function ProtectedLayout({ children }: Readonly<{ children:
       role: requestedRole,
       full_name: user.user_metadata?.full_name ?? '',
       organization_name: null,
+      gender: null,
       headline: null,
       bio: null,
       disability_description: null,

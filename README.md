@@ -29,6 +29,53 @@ PWD Connect is a deployable Next.js and Supabase implementation of the supplied 
 - Server-side request limits for authentication, profile/photo changes, applications, assessments, job posting, and read endpoints.
 - Skeleton loaders, visible focus states, responsive layouts, and accessible error/status messaging.
 
+## Matching algorithm workflow
+
+```mermaid
+flowchart TD
+    A([Candidate skill IDs, levels, source + location<br/>Job skill IDs, weights, levels + location]) --> B{Does the job have required skills?}
+
+    B -- No --> C[Return score 0<br/>Empty matched, missing, and verified lists<br/>Explain that required skills are needed]
+    B -- Yes --> D[Build candidate skill lookup<br/>totalWeight = sum max(importance ?? 1, 1)<br/>Initialize matchedWeight and result lists]
+
+    D --> E[Select next required skill]
+    E --> F{Does candidate have the same skill_id?}
+
+    F -- No --> G[Add skill to missing<br/>Contribution is 0]
+    F -- Yes --> H[Set weight = max(importance ?? 1, 1)<br/>Set ratio = min(proficiency / max(required_level ?? 1, 1), 1)<br/>Add weight × ratio to matchedWeight<br/>Add skill to matched]
+
+    H --> I{assessment_verified<br/>and proficiency ≥ 3?}
+    I -- Yes --> J[Add skill to verified]
+    I -- No --> K[Do not add a verification entry]
+
+    G --> L{More required skills?}
+    J --> L
+    K --> L
+    L -- Yes --> E
+    L -- No --> M[Calculate score components<br/>Skill: 75 × matchedWeight / totalWeight<br/>Verification: 15 × verifiedCount / requiredCount<br/>Location: +10 if both locations are present and equal, ignoring case]
+
+    M --> N[fit_score = round(min(sum of components, 100))]
+    C --> O[Return score, matched / missing / verified,<br/>hasVerifiedEvidence, and explanation]
+    N --> O
+    O --> P[Repeat for each job and sort by fit_score descending]
+    P -. Candidate recommendation/dashboard routes .-> Q[Keep jobs with hasVerifiedEvidence and fit_score ≥ 40]
+
+    classDef start fill:#0f172a,stroke:#0f172a,color:#ffffff,stroke-width:2px;
+    classDef process fill:#ccfbf1,stroke:#0f766e,color:#0f172a,stroke-width:1.5px;
+    classDef decision fill:#ede9fe,stroke:#7c3aed,color:#0f172a,stroke-width:1.5px;
+    classDef output fill:#fff5d7,stroke:#ca8a04,color:#0f172a,stroke-width:1.5px;
+    class A start;
+    class B,F,I,L decision;
+    class D,E,G,H,J,K,M,N process;
+    class C,O,P,Q output;
+```
+
+[Download the SVG version](docs/matching-algorithm-workflow.svg) for use in reports or thesis documents.
+
+For each job with required skills, the skill-alignment component contributes up to 75 points using importance-weighted proficiency; assessment-verified skills at proficiency level 3 or higher contribute up to 15 points; and an exact, case-insensitive location match contributes 10 points. The total is rounded and capped at 100. Jobs without required skills receive a score of 0. `rankJobs` evaluates each job and sorts the results from highest to lowest score.
+
+The candidate recommendation and dashboard endpoints apply a further filter after ranking: a job must have at least one verified skill and a fit score of 40 or higher. Disability category and RAND-36 health scores are not matching inputs; this transparent, rule-based score is not a validated employability prediction.
+
 ## Stack
 
 - Next.js 16 App Router and React 19
@@ -66,7 +113,7 @@ The platform is browser-based and is designed for keyboard navigation, high cont
 
 1. Create a Supabase project and enable Email provider authentication.
 2. In Supabase **Authentication > Providers > Email**, keep **Confirm email** enabled for a public deployment. New accounts confirm their address through `/auth/callback` before signing in. Disabling confirmation is acceptable only for a private pilot because it allows email impersonation.
-3. Back up the Supabase project and verify restore before schema changes. Test the migration chain on a disposable project, then run migrations `001_initial.sql` through `010_rand36_assessments.sql` in order. Migration 010 adds private, consent-linked RAND-36 responses and eight separate scale scores. Do not apply the locally untracked migrations to a populated project until its migration history has been checked.
+3. Back up the Supabase project and verify restore before schema changes. Test the migration chain on a disposable project, then run migrations `001_initial.sql` through `014_additional_common_skills.sql` in order. Migration 010 adds private, consent-linked RAND-36 responses and eight separate scale scores. Migration 012 adds optional gender to private profiles; it is not used in matching or shown to employers. Migrations 013 and 014 add and categorize the common-skills catalog into Business, Creative, Digital work, People, Technology, and Thinking. Do not apply the locally untracked migrations to a populated project until its migration history has been checked.
 4. Copy `.env.example` to `.env.local` and fill in:
 
    ```text

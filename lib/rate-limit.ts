@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server.js';
 
 type RateLimitOptions = {
   limit: number;
@@ -28,6 +28,12 @@ function removeExpired(now: number) {
 }
 
 export function checkRateLimit(request: Request, scope: string, options: RateLimitOptions, identity?: string) {
+  // Local development has one tester and often repeats auth flows; keep the
+  // shared production protections from locking out localhost testing.
+  if (process.env.NODE_ENV === 'development') {
+    return { allowed: true, retryAfterSeconds: 0 };
+  }
+
   const now = Date.now();
   removeExpired(now);
   const key = `${scope}:${identity || requestAddress(request)}`;

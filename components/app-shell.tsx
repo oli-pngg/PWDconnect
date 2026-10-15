@@ -9,7 +9,6 @@ import { AccessibilityTools } from '@/components/accessibility-tools';
 import { BrandMark } from '@/components/brand-mark';
 import { LanguageSwitcher, useLanguage } from '@/components/language-provider';
 import { SignOutButton } from '@/components/sign-out-button';
-import { TextToSpeechControls } from '@/components/text-to-speech-controls';
 
 const candidateLinks = [
   { href: '/dashboard', label: 'Overview', tagalog: 'Buod', icon: LayoutDashboard },
@@ -86,7 +85,18 @@ export function AppShell({ profile, children }: { profile: Profile; children: Re
   return (
     <div className="app-layout">
       <div id="primary-navigation" ref={sidebarRef} className={`sidebar ${open ? 'open' : ''}`}>
-        <BrandMark href="/dashboard" />
+        <div className="sidebar-header">
+          <BrandMark href="/dashboard" onClick={() => setOpen(false)} />
+          <button
+            className="mobile-sidebar-close icon-button"
+            type="button"
+            aria-label={language === 'tl' ? 'Isara ang nabigasyon' : 'Close navigation'}
+            aria-controls="primary-navigation"
+            onClick={() => setOpen(false)}
+          >
+            <X size={18} aria-hidden="true" />
+          </button>
+        </div>
         <p className="sidebar-role" aria-hidden="false">{roleLabel(profile.role, language)}</p>
         <nav className="sidebar-nav" aria-label={language === 'tl' ? 'Pangunahing nabigasyon ng workspace' : 'Primary workspace navigation'}>
           {links.map(({ href, label, tagalog, icon: Icon }) => {
@@ -100,6 +110,7 @@ export function AppShell({ profile, children }: { profile: Profile; children: Re
           <SignOutButton />
         </div>
       </div>
+      {open ? <button className="mobile-sidebar-backdrop" type="button" aria-label={language === 'tl' ? 'Isara ang menu ng nabigasyon' : 'Close navigation menu'} onClick={() => setOpen(false)} /> : null}
       <div className="app-content" inert={open ? true : undefined} aria-hidden={open || undefined}>
         <header className="app-topbar">
           <div className="inline-actions">
@@ -111,7 +122,6 @@ export function AppShell({ profile, children }: { profile: Profile; children: Re
           <div className="topbar-tools">
             <LanguageSwitcher />
             <AccessibilityTools />
-            <TextToSpeechControls key={pathname} />
           </div>
         </header>
         <main id="main-content" className="page-content" tabIndex={-1}>{children}</main>

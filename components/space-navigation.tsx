@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 
 const interactiveSelector =
-  'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [role="button"]:not([aria-disabled="true"]), [tabindex]:not([tabindex="-1"])';
+  'a[href], area[href], button, input, select, textarea, summary, [contenteditable="true"], [tabindex]';
 
 function isTypingTarget(element: Element | null) {
   if (!(element instanceof HTMLElement)) return false;
@@ -15,9 +15,29 @@ function isTypingTarget(element: Element | null) {
 }
 
 function visibleInteractiveElements() {
-  return Array.from(document.querySelectorAll<HTMLElement>(interactiveSelector)).filter((element) => {
+  const appRoot = document.getElementById('pwd-connect-app');
+  if (!appRoot) return [];
+
+  const visible = Array.from(appRoot.querySelectorAll<HTMLElement>(interactiveSelector)).filter((element) => {
+    if (element.tabIndex < 0 || element.matches(':disabled') || element.closest('[hidden], [inert], [aria-hidden="true"]')) return false;
     const style = window.getComputedStyle(element);
     return style.display !== 'none' && style.visibility !== 'hidden' && element.getClientRects().length > 0;
+  });
+
+  const tabbable = visible.filter((element) => {
+    if (!(element instanceof HTMLInputElement) || element.type !== 'radio' || !element.name) return true;
+    const group = visible.filter(
+      (candidate) => candidate instanceof HTMLInputElement && candidate.type === 'radio' && candidate.name === element.name && candidate.form === element.form
+    );
+    const checkedRadio = group.find((radio) => radio instanceof HTMLInputElement && radio.checked);
+    return checkedRadio ? element === checkedRadio : element === group[0];
+  });
+
+  return tabbable.sort((left, right) => {
+    if (left.tabIndex === 0 && right.tabIndex > 0) return 1;
+    if (left.tabIndex > 0 && right.tabIndex === 0) return -1;
+    if (left.tabIndex > 0 && right.tabIndex > 0) return left.tabIndex - right.tabIndex;
+    return 0;
   });
 }
 
@@ -53,6 +73,24 @@ export function SpaceNavigation() {
 
     let lastSpaceAt = 0;
     function moveOrSelect(event: KeyboardEvent) {
+      if (event.defaultPrevented) return;
+
+      // Wrap native Tab traversal so focus stays among visible app controls.
+      if (event.key === 'Tab' && !event.altKey && !event.ctrlKey && !event.metaKey) {
+        const elements = visibleInteractiveElements();
+        if (!elements.length) return;
+
+        const active = document.activeElement as HTMLElement | null;
+        const activeIndex = active ? elements.indexOf(active) : -1;
+        const atBoundary = event.shiftKey ? activeIndex <= 0 : activeIndex < 0 || activeIndex === elements.length - 1;
+        if (atBoundary) {
+          event.preventDefault();
+          const target = elements[event.shiftKey ? elements.length - 1 : 0];
+          target?.focus();
+        }
+        return;
+      }
+
       if (event.key !== ' ' && event.key !== 'Spacebar') return;
       if (!isSpaceNavOn()) return;
       if (event.altKey || event.ctrlKey || event.metaKey || isTypingTarget(event.target as Element | null)) return;

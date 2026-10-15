@@ -24,9 +24,12 @@ export function AssessmentView() {
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
+  const [questionError, setQuestionError] = useState('');
+  const [selectionConfirmation, setSelectionConfirmation] = useState<{ questionNumber: number; label: string } | null>(null);
   const [result, setResult] = useState<Attempt | null>(null);
   const [verifiedSkillCount, setVerifiedSkillCount] = useState(0);
   const questionHeadingRef = useRef<HTMLHeadingElement | null>(null);
+  const optionFieldsetRef = useRef<HTMLFieldSetElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -72,6 +75,8 @@ export function AssessmentView() {
     setQuestions([]);
     setAnswers({});
     setIndex(0);
+    setQuestionError('');
+    setSelectionConfirmation(null);
     setResult(null);
     setVerifiedSkillCount(0);
     setError('');
@@ -85,17 +90,23 @@ export function AssessmentView() {
     setQuestions([]);
     setAnswers({});
     setIndex(0);
+    setQuestionError('');
+    setSelectionConfirmation(null);
     setResult(null);
     setVerifiedSkillCount(0);
     setError('');
   }
 
   async function submit() {
-    const answeredCount = Object.keys(answers).length;
-    if (answeredCount !== questions.length) {
-      setError('Answer every question before submitting. Use the progress indicator to find the unanswered items.');
+    const unansweredIndex = questions.findIndex((question) => !answers[question.id]);
+    if (unansweredIndex !== -1) {
+      setQuestionError(`Select one response for question ${unansweredIndex + 1} before submitting.`);
+      setSelectionConfirmation(null);
+      if (unansweredIndex !== index) setIndex(unansweredIndex);
+      requestAnimationFrame(() => optionFieldsetRef.current?.querySelector<HTMLInputElement>('input[type="radio"]')?.focus());
       return;
     }
+    setQuestionError('');
     setPending(true);
     setError('');
     try {
@@ -122,6 +133,48 @@ export function AssessmentView() {
   const answeredCount = Object.keys(answers).length;
   const isLast = index === questions.length - 1;
 
+  function focusFirstOption() {
+    requestAnimationFrame(() => optionFieldsetRef.current?.querySelector<HTMLInputElement>('input[type="radio"]')?.focus());
+  }
+
+  function nextQuestion() {
+    if (!answers[current.id]) {
+      setQuestionError(`Select one response for question ${index + 1} before moving to the next question.`);
+      focusFirstOption();
+      return;
+    }
+    setQuestionError('');
+    setSelectionConfirmation(null);
+    setIndex((value) => Math.min(questions.length - 1, value + 1));
+  }
+
+  function previousQuestion() {
+    setQuestionError('');
+    setSelectionConfirmation(null);
+    setIndex((value) => Math.max(0, value - 1));
+  }
+
+  function navigateRadioChoices(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== 'Tab') return;
+    const currentRadio = event.currentTarget;
+    const choices = Array.from(optionFieldsetRef.current?.querySelectorAll<HTMLInputElement>('input[type="radio"]') ?? []);
+    const currentIndex = choices.indexOf(currentRadio);
+    const nextChoice = choices[currentIndex + (event.shiftKey ? -1 : 1)];
+    const hasAnswer = answers[current.id] != null;
+
+    if (hasAnswer) return;
+    if (nextChoice) {
+      event.preventDefault();
+      nextChoice.focus();
+      return;
+    }
+    if (event.shiftKey) return;
+
+    event.preventDefault();
+    setQuestionError(`Select one response for question ${index + 1} before moving to the next question.`);
+    choices[0]?.focus();
+  }
+
   return <>
     <div className="page-heading"><div><p className="eyebrow">Occupational skills assessment</p><h1>Show your job skills.</h1><p>This job-specific quiz is separate from RAND-36 health results.</p></div><div className="notice"><Clock3 size={15} aria-hidden="true" /> No visible timer</div></div>
     <section className="panel" aria-labelledby="assessment-category-heading">
@@ -132,6 +185,59 @@ export function AssessmentView() {
     </section>
     {error ? <div className="form-error" role="alert">{error}</div> : null}
     {selectedCategory && !questions.length && !loading ? <div className="empty-state"><h3>No questions are available for this category.</h3><p>Choose another category or ask the employer to add questions.</p></div> : null}
-    {questions.length ? <div className="assessment-layout"><section className="assessment-card" aria-labelledby="question-heading"><div className="assessment-progress"><span>Question {index + 1} of {questions.length}</span><div className="meter" role="progressbar" aria-label={`Question ${index + 1} of ${questions.length}`} aria-valuenow={index + 1} aria-valuemin={1} aria-valuemax={questions.length}><span style={{ width: `${((index + 1) / questions.length) * 100}%` }} /></div><span>{answeredCount}/{questions.length} answered</span></div><p className="question-number">{selectedCategory}</p><h2 id="question-heading" ref={questionHeadingRef} tabIndex={-1}>{current.prompt}</h2><fieldset className="option-list" style={{ border: 0, padding: 0, margin: 0 }}><legend className="sr-only">Select one answer</legend>{current.options.map((option, optionIndex) => <div className="option" key={`${option}-${optionIndex}`}><input id={`question-${current.id}-${optionIndex}`} type="radio" name={`question-${current.id}`} checked={answers[current.id] === option} onChange={() => setAnswers((previous) => ({ ...previous, [current.id]: option }))} /><label htmlFor={`question-${current.id}-${optionIndex}`}>{option}</label></div>)}</fieldset><div className="assessment-actions"><button className="button secondary small" type="button" disabled={index === 0} onClick={() => setIndex((value) => Math.max(0, value - 1))}><ArrowLeft size={15} aria-hidden="true" /> Previous</button>{isLast ? <button className="button small" type="button" disabled={pending} onClick={() => void submit()}>{pending ? 'Scoring...' : 'Submit assessment'} <CheckCircle2 size={15} aria-hidden="true" /></button> : <button className="button small" type="button" onClick={() => setIndex((value) => Math.min(questions.length - 1, value + 1))}>Next <ArrowRight size={15} aria-hidden="true" /></button>}</div><div className="sr-status" role="status" aria-live="polite" aria-atomic="true">{error}</div></section><aside className="panel" aria-labelledby="assessment-support-heading"><div className="panel-header"><div><h2 id="assessment-support-heading">Assessment support</h2><p>Choose the access details that help you participate.</p></div><Info size={20} aria-hidden="true" /></div><label className="field" htmlFor="assessment-notes"><span>Accommodation notes <small>(optional)</small></span><textarea className="textarea" id="assessment-notes" value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={500} placeholder="For example: I prefer written instructions and extra reading time." /></label>{latest ? <div className="notice" style={{ marginTop: 16 }}><strong>Latest attempt: {latest.assessment_category || 'Assessment'}</strong><span> {latest.score} of {latest.total_points} points.</span></div> : null}<p className="field-help" style={{ marginTop: 16 }}>Your category result updates the same verified skill signals used by job recommendations.</p></aside></div> : null}
+    {questions.length ? (
+      <div className="assessment-layout">
+        <section className="assessment-card" aria-labelledby="question-heading">
+          <div className="assessment-progress">
+            <span>Question {index + 1} of {questions.length}</span>
+            <div className="meter" role="progressbar" aria-label={`Question ${index + 1} of ${questions.length}`} aria-valuenow={index + 1} aria-valuemin={1} aria-valuemax={questions.length}>
+              <span style={{ width: `${((index + 1) / questions.length) * 100}%` }} />
+            </div>
+            <span role="status" aria-live="polite" aria-atomic="true">{answeredCount}/{questions.length} answered</span>
+          </div>
+          <p className="question-number">{selectedCategory}</p>
+          <h2 id="question-heading" ref={questionHeadingRef} tabIndex={0} aria-describedby="assessment-keyboard-instructions">{current.prompt}</h2>
+          <p className="field-help" id="assessment-keyboard-instructions">Use Tab to focus the question, then its choices. If no choice is selected, Tab moves through the choices. Arrow keys also move through them. Press Space to select. After selecting, Tab through the action buttons and activate Next to continue.</p>
+          {selectionConfirmation ? <div className="form-success" role="status" aria-live="polite" aria-atomic="true">Question {selectionConfirmation.questionNumber}: {selectionConfirmation.label} selected.</div> : null}
+          {questionError ? <p className="form-error" role="alert" aria-atomic="true">{questionError}<span className="sr-only">Question {index + 1}: {current.prompt} Available choices: {current.options.join('; ')}.</span></p> : null}
+          <fieldset className="option-list" ref={optionFieldsetRef} aria-invalid={questionError ? 'true' : undefined} aria-describedby="assessment-keyboard-instructions" style={{ border: 0, padding: 0, margin: 0 }}>
+            <legend className="sr-only">Question {index + 1}: {current.prompt}. Select one answer.</legend>
+            {current.options.map((option, optionIndex) => (
+              <div className="option" key={`${option}-${optionIndex}`}>
+                <input
+                  id={`question-${current.id}-${optionIndex}`}
+                  type="radio"
+                  name={`question-${current.id}`}
+                  checked={answers[current.id] === option}
+                  onChange={() => {
+                    setAnswers((previous) => ({ ...previous, [current.id]: option }));
+                    setSelectionConfirmation({ questionNumber: index + 1, label: option });
+                    setQuestionError('');
+                  }}
+                  onKeyDown={navigateRadioChoices}
+                />
+                <label htmlFor={`question-${current.id}-${optionIndex}`}>{option}</label>
+              </div>
+            ))}
+          </fieldset>
+          <div className="assessment-actions">
+            <button className="button secondary small" type="button" disabled={index === 0} onClick={previousQuestion}><ArrowLeft size={15} aria-hidden="true" /> Previous</button>
+            {isLast
+              ? <button className="button small" type="button" disabled={pending} onClick={() => void submit()}>{pending ? 'Scoring...' : 'Submit assessment'} <CheckCircle2 size={15} aria-hidden="true" /></button>
+              : <button className="button small" type="button" onClick={nextQuestion}>Next <ArrowRight size={15} aria-hidden="true" /></button>}
+          </div>
+          <div className="sr-status" role="status" aria-live="polite" aria-atomic="true">{error}</div>
+        </section>
+        <aside className="panel" aria-labelledby="assessment-support-heading">
+          <div className="panel-header">
+            <div><h2 id="assessment-support-heading">Assessment support</h2><p>Choose the access details that help you participate.</p></div>
+            <Info size={20} aria-hidden="true" />
+          </div>
+          <label className="field" htmlFor="assessment-notes"><span>Accommodation notes <small>(optional)</small></span><textarea className="textarea" id="assessment-notes" value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={500} placeholder="For example: I prefer written instructions and extra reading time." /></label>
+          {latest ? <div className="notice" style={{ marginTop: 16 }}><strong>Latest attempt: {latest.assessment_category || 'Assessment'}</strong><span> {latest.score} of {latest.total_points} points.</span></div> : null}
+          <p className="field-help" style={{ marginTop: 16 }}>Your category result updates the same verified skill signals used by job recommendations.</p>
+        </aside>
+      </div>
+    ) : null}
   </>;
 }

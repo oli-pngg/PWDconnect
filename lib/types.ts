@@ -1,3 +1,5 @@
+import type { GenderOption } from '@/lib/profile-options';
+
 export type UserRole = 'candidate' | 'employer' | 'admin';
 export type JobStatus = 'draft' | 'published' | 'closed';
 export type ApplicationStatus = 'submitted' | 'shortlisted' | 'interview' | 'rejected' | 'hired';
@@ -9,6 +11,7 @@ export type Profile = {
   role: UserRole;
   full_name: string;
   organization_name: string | null;
+  gender: GenderOption | null;
   headline: string | null;
   bio: string | null;
   disability_description: string | null;

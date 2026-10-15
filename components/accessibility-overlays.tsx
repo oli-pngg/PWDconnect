@@ -1,8 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { useAccessibility } from '@/components/accessibility-provider';
+import { useLanguage } from '@/components/language-provider';
 import { getSpeechRecognition, speechText } from '@/lib/speech';
+import { speakScreenReaderText } from '@/lib/screen-reader';
 
 function readableName(element: HTMLElement) {
   const labelledBy = element.getAttribute('aria-labelledby');
@@ -11,7 +14,7 @@ function readableName(element: HTMLElement) {
     : '';
   const label = element.getAttribute('aria-label') || labelledText || element.getAttribute('title');
   if (label) return label.trim();
-    if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement) {
+  if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement) {
     const associatedLabel = element.labels?.[0]?.textContent;
     if (associatedLabel) return associatedLabel.trim();
     if ('placeholder' in element && element.placeholder) return element.placeholder;
@@ -21,16 +24,107 @@ function readableName(element: HTMLElement) {
 
 function isUsefulTarget(element: HTMLElement) {
   return Boolean(
-    element.matches('a,button,input,select,textarea,[role="button"],[tabindex]')
+    element.closest('#pwd-connect-app') &&
+    element.matches('a[href],button,input:not([type="hidden"]),select,textarea,summary,legend[tabindex="0"],h2#question-heading,[role="button"],[role="checkbox"],[role="radio"],[role="switch"],[role="textbox"]')
   );
 }
 
+function assessmentQuestionContext(element: HTMLElement) {
+  const assessmentCard = element.closest('.assessment-card');
+  const questionHeading = assessmentCard?.querySelector<HTMLElement>('#question-heading');
+  if (questionHeading) {
+    const progress = assessmentCard?.querySelector('.assessment-progress > span')?.textContent?.trim();
+    const prompt = questionHeading.textContent?.replace(/\s+/g, ' ').trim();
+    return [progress, prompt].filter(Boolean).join('. ');
+  }
+
+  return element.closest('fieldset.rand36-item')?.querySelector('legend')?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+}
+
+function focusedControlAnnouncement(element: HTMLElement) {
+  const name = readableName(element);
+  if (!name) return '';
+
+  const isTagalog = document.documentElement.lang === 'tl';
+  const terms = isTagalog
+    ? { button: 'button', link: 'link', textField: 'text field', passwordField: 'password field', checkbox: 'checkbox', checked: 'may check', notChecked: 'walang check', mixed: 'mixed', radio: 'radio button', selected: 'selected', expanded: 'expanded', collapsed: 'collapsed', pressed: 'pressed', notPressed: 'not pressed' }
+    : { button: 'button', link: 'link', textField: 'text field', passwordField: 'password field', checkbox: 'checkbox', checked: 'checked', notChecked: 'not checked', mixed: 'mixed', radio: 'radio button', selected: 'selected', expanded: 'expanded', collapsed: 'collapsed', pressed: 'pressed', notPressed: 'not pressed' };
+
+  if (element.matches('h2#question-heading')) {
+    const context = assessmentQuestionContext(element);
+    return context ? `${context}.` : `${name}, question.`;
+  }
+
+  if (element instanceof HTMLInputElement) {
+    const questionContext = assessmentQuestionContext(element);
+    const prefix = questionContext ? `${questionContext}. ` : '';
+    if (element.type === 'checkbox') {
+      return `${prefix}${name}, ${terms.checkbox}, ${element.checked ? terms.checked : terms.notChecked}.`;
+    }
+    if (element.type === 'radio') {
+      return `${prefix}${name}, ${terms.radio}, ${element.checked ? terms.selected : terms.notChecked}.`;
+    }
+    if (element.type === 'password') return `${name}, ${terms.passwordField}.`;
+    if (['button', 'image', 'reset', 'submit'].includes(element.type)) return `${name}, ${terms.button}.`;
+    return `${name}, ${terms.textField}.`;
+  }
+
+  if (element.getAttribute('role') === 'checkbox') {
+    const questionContext = assessmentQuestionContext(element);
+    const checked = element.getAttribute('aria-checked');
+    const state = checked === 'mixed' ? terms.mixed : checked === 'true' ? terms.checked : terms.notChecked;
+    return `${questionContext ? `${questionContext}. ` : ''}${name}, ${terms.checkbox}, ${state}.`;
+  }
+  if (element.getAttribute('role') === 'radio') {
+    const questionContext = assessmentQuestionContext(element);
+    const state = element.getAttribute('aria-checked') === 'true' ? terms.selected : terms.notChecked;
+    return `${questionContext ? `${questionContext}. ` : ''}${name}, ${terms.radio}, ${state}.`;
+  }
+  if (element.getAttribute('role') === 'switch') {
+    const state = element.getAttribute('aria-checked') === 'true' ? terms.checked : terms.notChecked;
+    return `${name}, switch, ${state}.`;
+  }
+  if (element.getAttribute('role') === 'textbox') return `${name}, ${terms.textField}.`;
+
+  if (element instanceof HTMLTextAreaElement) return `${name}, ${terms.textField}.`;
+  if (element instanceof HTMLSelectElement) {
+    const selected = element.selectedOptions[0]?.textContent?.trim();
+    return `${name}${selected ? `, ${selected}` : ''}.`;
+  }
+
+  if (element instanceof HTMLButtonElement || element.getAttribute('role') === 'button') {
+    const state = element.getAttribute('aria-pressed');
+    const expanded = element.getAttribute('aria-expanded');
+    const details = [state === null ? '' : state === 'true' ? terms.pressed : terms.notPressed, expanded === null ? '' : expanded === 'true' ? terms.expanded : terms.collapsed].filter(Boolean);
+    return `${name}, ${terms.button}${details.length ? `, ${details.join(', ')}` : ''}.`;
+  }
+
+  if (element.tagName === 'SUMMARY') {
+    const open = element.parentElement instanceof HTMLDetailsElement && element.parentElement.open;
+    return `${name}, ${terms.button}, ${open ? terms.expanded : terms.collapsed}.`;
+  }
+
+  if (element instanceof HTMLAnchorElement) return `${name}, ${terms.link}.`;
+  return name;
+}
+
 export function AccessibilityOverlays() {
-  const { preferences } = useAccessibility();
+  const { preferences, updatePreference, screenReaderEnabled } = useAccessibility();
+  const { language } = useLanguage();
+  const pathname = usePathname();
+  const previousPathname = useRef(pathname);
   const [liveText, setLiveText] = useState('');
   const [liveStatus, setLiveStatus] = useState('');
   const [hoverText, setHoverText] = useState<{ text: string; x: number; y: number } | null>(null);
   const [typingText, setTypingText] = useState('');
+
+  function stopLiveRecognition() {
+    updatePreference('liveRecognition', false);
+    window.requestAnimationFrame(() => {
+      const controls = Array.from(document.querySelectorAll<HTMLElement>('.accessibility-menu summary'));
+      controls.find((control) => control.getClientRects().length > 0)?.focus();
+    });
+  }
 
   useEffect(() => {
     if (!preferences.liveRecognition) return;
@@ -65,21 +159,56 @@ export function AccessibilityOverlays() {
   }, [preferences.liveRecognition]);
 
   useEffect(() => {
-    if (!preferences.voiceOver) return;
+    if (!screenReaderEnabled) return;
+
     function speakFocus(event: FocusEvent) {
       const element = event.target as HTMLElement | null;
-      if (!element || !isUsefulTarget(element) || !('speechSynthesis' in window)) return;
-      const name = readableName(element);
-      if (!name) return;
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(name);
-      utterance.lang = document.documentElement.lang === 'tl' ? 'tl-PH' : 'en-US';
-      utterance.rate = 0.95;
-      window.speechSynthesis.speak(utterance);
+      if (!element || element.closest('[data-native-screen-reader]') || !isUsefulTarget(element) || !('speechSynthesis' in window)) return;
+      const announcement = focusedControlAnnouncement(element);
+      if (!announcement) return;
+      speakScreenReaderText(announcement, language);
     }
+
+    function speakActivation(event: KeyboardEvent) {
+      if (event.key !== 'Enter') return;
+      const element = document.activeElement as HTMLElement | null;
+      if (!element || element.closest('[data-native-screen-reader]') || !isUsefulTarget(element)) return;
+      const activates = element instanceof HTMLButtonElement
+        || element instanceof HTMLAnchorElement
+        || element.getAttribute('role') === 'button'
+        || (element instanceof HTMLInputElement && ['button', 'image', 'reset', 'submit'].includes(element.type));
+      if (!activates) return;
+      speakScreenReaderText(`Activating: ${readableName(element)}`, language);
+    }
+
     document.addEventListener('focusin', speakFocus);
-    return () => document.removeEventListener('focusin', speakFocus);
-  }, [preferences.voiceOver]);
+    document.addEventListener('keyup', speakActivation);
+    return () => {
+      document.removeEventListener('focusin', speakFocus);
+      document.removeEventListener('keyup', speakActivation);
+    };
+  }, [language, screenReaderEnabled]);
+
+  useEffect(() => {
+    if (previousPathname.current === pathname) return;
+    previousPathname.current = pathname;
+    if (!screenReaderEnabled) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      const appRoot = document.getElementById('pwd-connect-app');
+      const heading = appRoot?.querySelector<HTMLElement>('main h1, h1');
+      if (!appRoot || !heading) return;
+
+      const active = document.activeElement as HTMLElement | null;
+      if (!active || active === document.body || !appRoot.contains(active)) {
+        heading.tabIndex = -1;
+        heading.focus({ preventScroll: true });
+      }
+      speakScreenReaderText(heading.textContent?.replace(/\s+/g, ' ').trim() || 'Page loaded.', language);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [language, pathname, screenReaderEnabled]);
 
   useEffect(() => {
     if (!preferences.hoverText) return;
@@ -136,10 +265,15 @@ export function AccessibilityOverlays() {
   return (
     <>
       {preferences.liveRecognition ? (
-        <div className="live-recognition-overlay" role="status" aria-live="polite" aria-atomic="true">
-          <strong>Live recognition</strong>
-          <span>{liveText || liveStatus || 'Listening'}</span>
-        </div>
+        <section className="live-recognition-overlay" aria-label={language === 'tl' ? 'Live na pagkilala sa pagsasalita' : 'Live speech recognition'}>
+          <div className="live-recognition-status" role="status" aria-live="polite" aria-atomic="true">
+            <strong>Live recognition</strong>
+            <span>{liveText || liveStatus || 'Listening'}</span>
+          </div>
+          <button className="button secondary small live-recognition-stop" type="button" onClick={stopLiveRecognition}>
+            {language === 'tl' ? 'Itigil ang live recognition' : 'Stop live recognition'}
+          </button>
+        </section>
       ) : null}
       {preferences.hoverText && hoverText ? (
         <div className="hover-text-overlay" role="tooltip" style={{ left: hoverText.x + 14, top: hoverText.y + 14 }}>

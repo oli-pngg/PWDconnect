@@ -7,6 +7,7 @@ export type Language = 'en' | 'tl';
 const translations = {
   en: {
     accessibility: 'Accessibility',
+    navigationGuide: 'Navigation guide',
     howItWorks: 'How it works',
     standards: 'Accessibility',
     signIn: 'Sign in',
@@ -34,6 +35,7 @@ const translations = {
   },
   tl: {
     accessibility: 'Accessibility',
+    navigationGuide: 'Gabay sa nabigasyon',
     howItWorks: 'Paano ito gumagana',
     standards: 'Accessibility',
     signIn: 'Mag-sign in',

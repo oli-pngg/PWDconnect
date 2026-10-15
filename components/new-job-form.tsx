@@ -2,10 +2,11 @@
 
 import { ArrowLeft, CheckCircle2, FilePlus2, Plus, Trash2 } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import type { Skill } from '@/lib/types';
 import { isValidOccupationalQuestionCount, MAX_OCCUPATIONAL_QUESTIONS, MIN_OCCUPATIONAL_QUESTIONS } from '@/lib/assessment-rules';
+import { MAX_REQUIRED_JOB_SKILLS } from '@/lib/skill-rules';
 
 type QuestionDraft = {
   prompt: string;
@@ -20,12 +21,17 @@ const blankQuestion = (): QuestionDraft => ({ prompt: '', options: ['', '', '', 
 export function NewJobForm() {
   const [skills, setSkills] = useState<Skill[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [skillSearches, setSkillSearches] = useState<Record<string, string>>({});
   const [questions, setQuestions] = useState<QuestionDraft[]>(() => Array.from({ length: MIN_OCCUPATIONAL_QUESTIONS }, blankQuestion));
   const [form, setForm] = useState({ title: '', description: '', assessmentCategory: '', location: 'Legazpi City, Albay', workMode: 'Flexible', employmentType: 'Full-time', salaryMin: '', salaryMax: '', accommodations: '', status: 'draft' });
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const groupedSkills = useMemo(() => skills.reduce<Record<string, Skill[]>>((groups, skill) => {
+    (groups[skill.category] ??= []).push(skill);
+    return groups;
+  }, {}), [skills]);
 
   useEffect(() => {
     fetch('/api/skills', { cache: 'no-store' }).then(async (response) => {
@@ -37,7 +43,17 @@ export function NewJobForm() {
 
   function setField(field: keyof typeof form, value: string) { setForm((current) => ({ ...current, [field]: value })); }
 
-  function toggleSkill(id: string) { setSelectedSkills((current) => current.includes(id) ? current.filter((skillId) => skillId !== id) : [...current, id]); }
+  function toggleSkill(id: string) {
+    setError('');
+    setSelectedSkills((current) => {
+      if (current.includes(id)) return current.filter((skillId) => skillId !== id);
+      return current.length < MAX_REQUIRED_JOB_SKILLS ? [...current, id] : current;
+    });
+  }
+
+  function setSkillSearch(category: string, value: string) {
+    setSkillSearches((current) => ({ ...current, [category]: value }));
+  }
 
   function setQuestionField(index: number, field: keyof QuestionDraft, value: string) {
     setQuestions((current) => current.map((question, questionIndex) => questionIndex === index ? { ...question, [field]: value } : question));
@@ -120,8 +136,49 @@ export function NewJobForm() {
       <label className="field" htmlFor="job-accommodations"><span>Accessibility and accommodations <small>(optional)</small></span><textarea className="textarea" id="job-accommodations" value={form.accommodations} onChange={(event) => setField('accommodations', event.target.value)} maxLength={1000} placeholder="Describe available accommodations, communication options, or flexible arrangements." /></label>
       <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
         <legend>Required skills</legend>
-        <p className="field-help">These skills drive the existing fit-score algorithm and connect assessment answers to verified skills.</p>
-        <div className="skill-picker">{skills.map((skill) => <label key={skill.id} title={skill.category}><input type="checkbox" checked={selectedSkills.includes(skill.id)} onChange={() => toggleSkill(skill.id)} /> <span>{skill.name}</span></label>)}</div>
+        <p className="field-help">Choose up to {MAX_REQUIRED_JOB_SKILLS} skills that are genuinely needed for this role. They drive the fit score and connect assessment answers to verified skills. {selectedSkills.length}/{MAX_REQUIRED_JOB_SKILLS} selected.</p>
+        <div className="skill-category-list">
+          {Object.entries(groupedSkills).map(([category, categorySkills]) => {
+            const search = (skillSearches[category] ?? '').trim().toLowerCase();
+            const visibleSkills = search
+              ? categorySkills.filter((skill) => skill.name.toLowerCase().includes(search))
+              : categorySkills;
+
+            return (
+              <section className="skill-category-group" aria-label={category} key={category}>
+                <h3 className="skill-category-heading">{category}</h3>
+                <label className="skill-category-search">
+                  <span className="sr-only">Search {category} skills</span>
+                  <input
+                    className="input"
+                    type="search"
+                    aria-label={`Search ${category} skills`}
+                    placeholder={`Search ${category} skills`}
+                    value={skillSearches[category] ?? ''}
+                    onChange={(event) => setSkillSearch(category, event.target.value)}
+                  />
+                </label>
+                {visibleSkills.length ? (
+                  <div className="skill-picker">
+                    {visibleSkills.map((skill) => (
+                      <label key={skill.id}>
+                        <input
+                          type="checkbox"
+                          checked={selectedSkills.includes(skill.id)}
+                          disabled={!selectedSkills.includes(skill.id) && selectedSkills.length >= MAX_REQUIRED_JOB_SKILLS}
+                          onChange={() => toggleSkill(skill.id)}
+                        />
+                        <span>{skill.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="skill-category-empty" role="status">No skills match this search.</p>
+                )}
+              </section>
+            );
+          })}
+        </div>
       </fieldset>
       <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
         <legend>Occupational skills assessment</legend>

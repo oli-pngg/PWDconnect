@@ -24,7 +24,6 @@ export type AccessibilityPreferences = {
   reduceTransparency: boolean;
   reduceWhitePoint: boolean;
   smartInvert: boolean;
-  voiceOver: boolean;
   zoom: ZoomLevel;
   dimFlashingLights: boolean;
   hoverText: boolean;
@@ -50,7 +49,6 @@ export const defaultAccessibilityPreferences: AccessibilityPreferences = {
   reduceTransparency: false,
   reduceWhitePoint: false,
   smartInvert: false,
-  voiceOver: false,
   zoom: '100',
   dimFlashingLights: false,
   hoverText: false,
@@ -108,7 +106,6 @@ export function applyAccessibilityPreferences(preferences: AccessibilityPreferen
   root.dataset.reduceTransparency = preferences.reduceTransparency ? 'on' : 'off';
   root.dataset.reduceWhitePoint = preferences.reduceWhitePoint ? 'on' : 'off';
   root.dataset.smartInvert = preferences.smartInvert ? 'on' : 'off';
-  root.dataset.voiceOver = preferences.voiceOver ? 'on' : 'off';
   root.dataset.zoom = preferences.zoom;
   root.dataset.dimFlashingLights = preferences.dimFlashingLights ? 'on' : 'off';
   root.dataset.hoverText = preferences.hoverText ? 'on' : 'off';
@@ -117,6 +114,8 @@ export function applyAccessibilityPreferences(preferences: AccessibilityPreferen
 
 type AccessibilityContextValue = {
   preferences: AccessibilityPreferences;
+  screenReaderEnabled: boolean;
+  setScreenReaderEnabled: (enabled: boolean) => void;
   updatePreference: <K extends keyof AccessibilityPreferences>(key: K, value: AccessibilityPreferences[K]) => void;
   setPreferences: (next: AccessibilityPreferences) => void;
   resetPreferences: () => void;
@@ -133,6 +132,7 @@ const AccessibilityContext = createContext<AccessibilityContextValue | null>(nul
  */
 export function AccessibilityProvider({ children }: Readonly<{ children: React.ReactNode }>) {
   const [preferences, setPreferencesState] = useState<AccessibilityPreferences>(defaultAccessibilityPreferences);
+  const [screenReaderEnabled, setScreenReaderEnabled] = useState(false);
   const loaded = useRef(false);
 
   // Load once on mount so server render + first paint use defaults, then
@@ -187,7 +187,7 @@ export function AccessibilityProvider({ children }: Readonly<{ children: React.R
   }, []);
 
   return (
-    <AccessibilityContext.Provider value={{ preferences, updatePreference, setPreferences, resetPreferences }}>
+    <AccessibilityContext.Provider value={{ preferences, screenReaderEnabled, setScreenReaderEnabled, updatePreference, setPreferences, resetPreferences }}>
       {children}
     </AccessibilityContext.Provider>
   );

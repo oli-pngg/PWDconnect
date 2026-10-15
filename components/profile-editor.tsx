@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { DISABILITY_OPTIONS } from '@/lib/disability';
+import { GENDER_OPTIONS } from '@/lib/profile-options';
+import { MAX_PROFILE_SKILLS } from '@/lib/skill-rules';
 import { Skeleton } from '@/components/skeleton';
 import type { Profile, Skill, UserRole } from '@/lib/types';
 
@@ -35,12 +37,14 @@ export function ProfileEditor({ role, isOnboarding = false }: { role: UserRole; 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [skillSearches, setSkillSearches] = useState<Record<string, string>>({});
   const [disabilityTypes, setDisabilityTypes] = useState<string[]>([]);
   const [needs, setNeeds] = useState<string[]>([]);
   const [form, setForm] = useState({
     firstName: '',
     middleName: '',
     lastName: '',
+    gender: '',
     organizationName: '',
     headline: '',
     bio: '',
@@ -71,6 +75,7 @@ export function ProfileEditor({ role, isOnboarding = false }: { role: UserRole; 
       const name = splitFullName(current.full_name ?? '');
       setForm({
         ...name,
+        gender: current.gender ?? '',
         organizationName: current.organization_name ?? '',
         headline: current.headline ?? '',
         bio: current.bio ?? '',
@@ -107,7 +112,16 @@ export function ProfileEditor({ role, isOnboarding = false }: { role: UserRole; 
   }
 
   function toggleSkill(skillId: string) {
-    setSelectedSkills((current) => current.includes(skillId) ? current.filter((id) => id !== skillId) : [...current, skillId]);
+    if (selectedSkills.includes(skillId)) {
+      setSelectedSkills((current) => current.filter((id) => id !== skillId));
+      return;
+    }
+    if (selectedSkills.length >= MAX_PROFILE_SKILLS) return;
+    setSelectedSkills((current) => [...current, skillId]);
+  }
+
+  function setSkillSearch(category: string, value: string) {
+    setSkillSearches((current) => ({ ...current, [category]: value }));
   }
 
   async function save(event: FormEvent<HTMLFormElement>) {
@@ -175,11 +189,22 @@ export function ProfileEditor({ role, isOnboarding = false }: { role: UserRole; 
          <div className="profile-frame-facts"><span>{form.location || 'Location not set'}</span><span>{form.workMode}</span><span>{selectedSkills.length} skills</span></div>
        </div>
        <div className="panel-header"><div><h2>{role === 'employer' ? 'Organization' : 'About you'}</h2><p>Used for matching.</p></div><Save size={20} aria-hidden="true" /></div>
-        <div className="field-grid two">
-           <div className="field-grid three name-fields"><label className="field" htmlFor="profile-first-name"><span>First name</span><input className="input" id="profile-first-name" autoComplete="given-name" value={form.firstName} onChange={(event) => updateField('firstName', event.target.value)} maxLength={40} required /></label><label className="field" htmlFor="profile-middle-name"><span>Middle name</span><input className="input" id="profile-middle-name" autoComplete="additional-name" value={form.middleName} onChange={(event) => updateField('middleName', event.target.value)} maxLength={40} /></label><label className="field" htmlFor="profile-last-name"><span>Last name</span><input className="input" id="profile-last-name" autoComplete="family-name" value={form.lastName} onChange={(event) => updateField('lastName', event.target.value)} maxLength={40} required /></label></div>
-          {role === 'employer' ? <label className="field" htmlFor="organization-name"><span>Organization name</span><input className="input" id="organization-name" value={form.organizationName} onChange={(event) => updateField('organizationName', event.target.value)} maxLength={140} required /></label> : <label className="field" htmlFor="headline"><span>Professional headline</span><input className="input" id="headline" value={form.headline} onChange={(event) => updateField('headline', event.target.value)} maxLength={160} placeholder="For example: Reliable remote support specialist" /></label>}
-        </div>
-        {role === 'employer' ? <label className="field" htmlFor="headline"><span>Organization headline</span><input className="input" id="headline" value={form.headline} onChange={(event) => updateField('headline', event.target.value)} maxLength={160} placeholder="What kind of work does your organization offer?" /></label> : null}
+         <div className="field-grid two">
+            <div className="field-grid three name-fields"><label className="field" htmlFor="profile-first-name"><span>First name</span><input className="input" id="profile-first-name" autoComplete="given-name" value={form.firstName} onChange={(event) => updateField('firstName', event.target.value)} maxLength={40} required /></label><label className="field" htmlFor="profile-middle-name"><span>Middle name</span><input className="input" id="profile-middle-name" autoComplete="additional-name" value={form.middleName} onChange={(event) => updateField('middleName', event.target.value)} maxLength={40} /></label><label className="field" htmlFor="profile-last-name"><span>Last name</span><input className="input" id="profile-last-name" autoComplete="family-name" value={form.lastName} onChange={(event) => updateField('lastName', event.target.value)} maxLength={40} required /></label></div>
+           {role === 'employer' ? <label className="field" htmlFor="organization-name"><span>Organization name</span><input className="input" id="organization-name" value={form.organizationName} onChange={(event) => updateField('organizationName', event.target.value)} maxLength={140} required /></label> : <label className="field" htmlFor="headline"><span>Professional headline</span><input className="input" id="headline" value={form.headline} onChange={(event) => updateField('headline', event.target.value)} maxLength={160} placeholder="For example: Reliable remote support specialist" /></label>}
+         </div>
+         {role === 'candidate' ? (
+           <div className="field-grid two">
+             <label className="field" htmlFor="profile-gender">
+               <span>Gender (optional)</span>
+               <select className="select" id="profile-gender" value={form.gender} onChange={(event) => updateField('gender', event.target.value)}>
+                 <option value="">Select gender (optional)</option>
+                 {GENDER_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+               </select>
+             </label>
+           </div>
+         ) : null}
+         {role === 'employer' ? <label className="field" htmlFor="headline"><span>Organization headline</span><input className="input" id="headline" value={form.headline} onChange={(event) => updateField('headline', event.target.value)} maxLength={160} placeholder="What kind of work does your organization offer?" /></label> : null}
           <label className="field" htmlFor="bio"><span>{role === 'employer' ? 'About the organization' : 'Profile description'} <small>(required)</small></span><textarea className="textarea" id="bio" value={form.bio} onChange={(event) => updateField('bio', event.target.value)} maxLength={1500} required aria-describedby="bio-help" placeholder={role === 'employer' ? 'Team, work, and inclusive hiring.' : 'Work you enjoy, tools, and strengths.'} /><small id="bio-help">Focus on skills, tasks, and goals.</small></label>
            {role === 'candidate' ? <div className="profile-access-block"><div className="profile-access-heading"><strong>PWD details</strong><span>Required</span></div><label className="field" htmlFor="disability-description"><span>Access description</span><textarea className="textarea" id="disability-description" value={form.disabilityDescription} onChange={(event) => updateField('disabilityDescription', event.target.value)} maxLength={1000} required aria-describedby="disability-description-help" placeholder="Example: I prefer written instructions and captions." /><small id="disability-description-help">Private. Used to provide access.</small></label>
         <div className="field-grid two">
@@ -191,7 +216,54 @@ export function ProfileEditor({ role, isOnboarding = false }: { role: UserRole; 
           {role === 'candidate' ? <label className="field" htmlFor="years-experience"><span>Years of experience <small>(required)</small></span><input className="input" id="years-experience" type="number" min="0" max="80" value={form.yearsExperience} onChange={(event) => updateField('yearsExperience', event.target.value)} required /></label> : <div />}
         </div>
            <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }} aria-describedby="profile-disability-help"><legend>PWD category</legend><p className="field-help" id="profile-disability-help">Choose at least one.</p><div className="disability-picker">{DISABILITY_OPTIONS.map((option) => <label className="disability-option" key={option.value}><input type="checkbox" checked={disabilityTypes.includes(option.value)} onChange={() => toggleDisability(option.value)} /><span><strong>{option.label}</strong><small>{option.description}</small></span></label>)}</div></fieldset></div> : null}
-         {role === 'candidate' ? <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}><legend>Skills to match</legend><p className="field-help">Verified skills rank higher.</p><div className="skill-picker">{Object.entries(groupedSkills).map(([category, categorySkills]) => categorySkills.map((skill) => <label key={skill.id} title={category}><input type="checkbox" checked={selectedSkills.includes(skill.id)} onChange={() => toggleSkill(skill.id)} /> <span>{skill.name}</span></label>))}</div></fieldset> : null}
+          {role === 'candidate' ? (
+            <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
+              <legend>Skills to match</legend>
+              <p className="field-help">Choose up to {MAX_PROFILE_SKILLS} skills. Verified skills rank higher.</p>
+              <div className="skill-category-list">
+                {Object.entries(groupedSkills).map(([category, categorySkills]) => {
+                  const search = (skillSearches[category] ?? '').trim().toLowerCase();
+                  const visibleSkills = search
+                    ? categorySkills.filter((skill) => skill.name.toLowerCase().includes(search))
+                    : categorySkills;
+
+                  return (
+                    <section className="skill-category-group" aria-label={category} key={category}>
+                      <h3 className="skill-category-heading">{category}</h3>
+                      <label className="skill-category-search">
+                        <span className="sr-only">Search {category} skills</span>
+                        <input
+                          className="input"
+                          type="search"
+                          aria-label={`Search ${category} skills`}
+                          placeholder={`Search ${category} skills`}
+                          value={skillSearches[category] ?? ''}
+                          onChange={(event) => setSkillSearch(category, event.target.value)}
+                        />
+                      </label>
+                      {visibleSkills.length ? (
+                        <div className="skill-picker">
+                          {visibleSkills.map((skill) => (
+                            <label key={skill.id}>
+                              <input
+                                type="checkbox"
+                                checked={selectedSkills.includes(skill.id)}
+                                disabled={!selectedSkills.includes(skill.id) && selectedSkills.length >= MAX_PROFILE_SKILLS}
+                                onChange={() => toggleSkill(skill.id)}
+                              />
+                              <span>{skill.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="skill-category-empty" role="status">No skills match this search.</p>
+                      )}
+                    </section>
+                  );
+                })}
+              </div>
+            </fieldset>
+          ) : null}
          {role === 'candidate' ? <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}><legend>Access preferences</legend><p className="field-help">These do not change your score.</p><div className="skill-picker">{needOptions.map((need) => <label key={need}><input type="checkbox" checked={needs.includes(need)} onChange={() => toggleNeed(need)} /> <span>{need}</span></label>)}</div></fieldset> : null}
          {role === 'candidate' ? <div className="notice"><div className="inline-actions"><Eye size={16} aria-hidden="true" /><strong>Blind matching</strong></div><span className="small-text">Employers see skills and a candidate reference first.</span></div> : null}
         {error ? <div className="form-error" role="alert">{error}</div> : null}

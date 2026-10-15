@@ -5,6 +5,7 @@ import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { getCandidateSkills, getVisibleJobs } from '@/lib/server-data';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { isValidOccupationalQuestionCount, MIN_OCCUPATIONAL_QUESTIONS } from '@/lib/assessment-rules';
+import { MAX_REQUIRED_JOB_SKILLS } from '@/lib/skill-rules';
 
 export async function GET(request: Request) {
   const limited = checkRateLimit(request, 'jobs-read', { limit: 120, windowMs: 60 * 1000 });
@@ -52,7 +53,9 @@ export async function POST(request: Request) {
     const body = await request.json() as Record<string, unknown>;
     const title = cleanText(body.title, 120);
     const description = cleanText(body.description, 5000);
-    const skillIds = cleanUuidArray(body.skillIds, 20);
+    const requestedSkillIds = Array.isArray(body.skillIds) ? body.skillIds : [];
+    if (requestedSkillIds.length > MAX_REQUIRED_JOB_SKILLS) return jsonError(`Select no more than ${MAX_REQUIRED_JOB_SKILLS} required skills.`);
+    const skillIds = cleanUuidArray(requestedSkillIds, MAX_REQUIRED_JOB_SKILLS);
     const assessmentCategory = cleanText(body.assessmentCategory, 80);
     const rawQuestions = Array.isArray(body.assessmentQuestions) ? body.assessmentQuestions : [];
     const assessmentQuestions = rawQuestions.map((question) => {
