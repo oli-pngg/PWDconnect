@@ -58,6 +58,7 @@ export function ProfileEditor({ role, isOnboarding = false }: { role: UserRole; 
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [failedProfilePhotoUrl, setFailedProfilePhotoUrl] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -182,9 +183,16 @@ export function ProfileEditor({ role, isOnboarding = false }: { role: UserRole; 
     {isOnboarding ? <div className="notice onboarding-note" role="note"><strong>Complete required fields to continue.</strong><span>Edit anytime.</span></div> : null}
      <form className="panel profile-frame form-stack" onSubmit={save} noValidate>
        <div className="profile-frame-header">
-         <div className="profile-frame-identity">
-            <div className="profile-avatar" aria-hidden="true">{displayName.slice(0, 1).toUpperCase()}</div>
-           <div><h2>{displayName}</h2><p>{form.headline || (role === 'employer' ? 'Organization profile' : 'Skills-first profile')}</p></div>
+          <div className="profile-frame-identity">
+            {profile?.profile_photo_url && failedProfilePhotoUrl !== profile.profile_photo_url ? (
+              <img
+                className="profile-photo"
+                src={profile.profile_photo_url}
+                alt={profile.profile_photo_alt || `Profile photo of ${displayName}`}
+                onError={() => setFailedProfilePhotoUrl(profile.profile_photo_url)}
+              />
+            ) : <div className="profile-avatar" aria-hidden="true">{displayName.slice(0, 1).toUpperCase()}</div>}
+            <div><h2>{displayName}</h2><p>{form.headline || (role === 'employer' ? 'Organization profile' : 'Skills-first profile')}</p></div>
          </div>
          <div className="profile-frame-facts"><span>{form.location || 'Location not set'}</span><span>{form.workMode}</span><span>{selectedSkills.length} skills</span></div>
        </div>

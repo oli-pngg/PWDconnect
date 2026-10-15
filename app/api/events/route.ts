@@ -1,17 +1,18 @@
 import { getAuthenticatedContext } from '@/lib/auth';
-import { bodyTooLarge, cleanText, jsonError, jsonOk, safeInteger } from '@/lib/http';
+import { bodyReadError, cleanText, jsonError, jsonOk, readLimitedJsonObject, safeInteger } from '@/lib/http';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 
 const allowedEvents = new Set(['dashboard_load', 'jobs_load', 'assessment_load', 'profile_load']);
 
 export async function POST(request: Request) {
-  if (bodyTooLarge(request, 8 * 1024)) return jsonError('Request is too large.', 413);
-  const limited = checkRateLimit(request, 'performance-event-write', { limit: 120, windowMs: 60 * 1000 });
+  const limited = await checkRateLimit(request, 'performance-event-write', { limit: 120, windowMs: 60 * 1000 });
   if (!limited.allowed) return rateLimitResponse(limited.retryAfterSeconds);
+  const parsedBody = await readLimitedJsonObject(request, 8 * 1024);
+  if (!parsedBody.ok) return bodyReadError(parsedBody);
   try {
     const { supabase, user } = await getAuthenticatedContext();
     if (!user) return jsonError('Authentication required.', 401);
-    const body = await request.json() as { eventName?: unknown; durationMs?: unknown };
+    const body = parsedBody.value as { eventName?: unknown; durationMs?: unknown };
     const eventName = cleanText(body.eventName, 40);
     const durationMs = safeInteger(body.durationMs, -1);
     if (!allowedEvents.has(eventName) || durationMs < 0 || durationMs > 120000) return jsonError('Invalid performance event.');

@@ -6,7 +6,7 @@ import { getCandidateSkills, getVisibleJobs } from '@/lib/server-data';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 
 export async function GET(request: Request) {
-  const limited = checkRateLimit(request, 'dashboard-read', { limit: 60, windowMs: 60 * 1000 });
+  const limited = await checkRateLimit(request, 'dashboard-read', { limit: 60, windowMs: 60 * 1000 });
   if (!limited.allowed) return rateLimitResponse(limited.retryAfterSeconds);
   try {
     const { supabase, user } = await getAuthenticatedContext();
@@ -50,9 +50,21 @@ export async function GET(request: Request) {
       return jsonOk({ role: 'admin', profile, stats: { users: users.count ?? 0, jobs: jobs.count ?? 0, applications: applications.count ?? 0, assessments: assessments.count ?? 0 } });
     }
 
+    const { data: verification, error: verificationError } = await supabase.from('employer_verifications').select('status').eq('employer_id', user.id).maybeSingle();
+    if (verificationError || !verification) return jsonError('Employer verification setup is missing. Apply migration 018_employer_verification.sql.', 503);
     const { data: jobs, error: jobsError } = await supabase.from('jobs').select('id, title, status, created_at').eq('employer_id', user.id).order('created_at', { ascending: false });
     if (jobsError) return jsonError('Unable to load employer dashboard.', 500);
     const jobIds = (jobs ?? []).map((job) => job.id);
+    if (verification.status !== 'approved') {
+      return jsonOk({
+        role: profile.role,
+        profile,
+        verificationStatus: verification.status,
+        stats: { jobs: jobs?.length ?? 0, published: (jobs ?? []).filter((job) => job.status === 'published').length, applicants: 0, shortlisted: 0 },
+        jobs: jobs ?? [],
+        applications: []
+      });
+    }
     const [{ data: applications, count: applicationCount }, { count: activeCount }] = jobIds.length ? await Promise.all([
       supabase.from('applications').select('id, job_id, fit_score, status, matched_skills, created_at', { count: 'exact' }).in('job_id', jobIds).order('fit_score', { ascending: false }).limit(12),
       supabase.from('applications').select('id', { count: 'exact', head: true }).in('job_id', jobIds).in('status', ['shortlisted', 'interview'])
@@ -60,6 +72,7 @@ export async function GET(request: Request) {
     return jsonOk({
       role: profile.role,
       profile,
+      verificationStatus: verification.status,
       stats: { jobs: jobs?.length ?? 0, published: (jobs ?? []).filter((job) => job.status === 'published').length, applicants: applicationCount ?? 0, shortlisted: activeCount ?? 0 },
       jobs: jobs ?? [],
       applications: applications ?? []

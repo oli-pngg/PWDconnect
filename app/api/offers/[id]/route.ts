@@ -1,6 +1,6 @@
 import { getApplicationAccess } from '@/lib/application-access';
 import { getAuthenticatedContext } from '@/lib/auth';
-import { jsonError, jsonOk } from '@/lib/http';
+import { bodyReadError, jsonError, jsonOk, readLimitedJsonObject } from '@/lib/http';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 
@@ -14,11 +14,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   try {
     const { user } = await getAuthenticatedContext();
     if (!user) return jsonError('Authentication required.', 401);
-    const limited = checkRateLimit(request, 'offer-response-write', { limit: 20, windowMs: 60 * 60 * 1000 }, user.id);
+    const limited = await checkRateLimit(request, 'offer-response-write', { limit: 20, windowMs: 60 * 60 * 1000 }, user.id);
     if (!limited.allowed) return rateLimitResponse(limited.retryAfterSeconds);
     const { id } = await context.params;
     if (!validUuid(id)) return jsonError('Invalid offer.', 400);
-    const body = await request.json() as { status?: unknown };
+    const parsedBody = await readLimitedJsonObject(request, 16 * 1024);
+    if (!parsedBody.ok) return bodyReadError(parsedBody);
+    const body = parsedBody.value as { status?: unknown };
     const status = typeof body.status === 'string' ? body.status : '';
     if (!statuses.has(status)) return jsonError('Invalid offer response.');
 

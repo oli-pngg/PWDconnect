@@ -62,7 +62,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
   const [availability, setAvailability] = useState('Open to opportunities');
   const [yearsExperience, setYearsExperience] = useState('0');
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(() => searchParams.get('authError') === 'expired-link' ? 'This sign-in or recovery link has expired. Request a fresh link and try again.' : '');
   const [notice, setNotice] = useState('');
   const [profileSaveFailed, setProfileSaveFailed] = useState(false);
   const [pending, setPending] = useState(false);
@@ -88,7 +88,8 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
     if (!isLogin && registerStep === 'category' && !disabilityTypes.length) return 'Choose a PWD category.';
     if (!isLogin && registerStep !== 'credentials') return '';
     if (!email.trim() || !email.includes('@')) return 'Enter a valid email address to continue.';
-    if (password.length < 12) return 'Use a password with at least 12 characters.';
+    if (!password) return 'Enter your password to continue.';
+    if (!isLogin && password.length < 12) return 'Use a password with at least 12 characters.';
     return '';
   }
 
@@ -203,7 +204,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
       }
 
       if (!isLogin && result.confirmationRequired) {
-        setNotice('Check your email to confirm your account, then sign in.');
+        setNotice('If an account can be created for this email, confirmation instructions will be sent. Check your inbox, then sign in to finish setting up your profile.');
         setPending(false);
         return;
       }
@@ -271,8 +272,9 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
                {!isProfileStep ? <>
                   {!isLogin && registerStep === 'type' ? <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}><legend>{language === 'tl' ? 'Uri ng account' : 'Account type'}</legend><div className="role-grid"><div className="role-option"><input id="role-candidate" name="role" type="radio" value="candidate" checked={role === 'candidate'} onChange={() => setRole('candidate')} /><label htmlFor="role-candidate"><strong>{language === 'tl' ? 'Maghanap ng trabaho' : 'Applicant'}</strong><span>{language === 'tl' ? 'Ako ay naghahanap ng trabaho.' : 'I am a job seeker.'}</span></label></div><div className="role-option"><input id="role-employer" name="role" type="radio" value="employer" checked={role === 'employer'} onChange={() => setRole('employer')} /><label htmlFor="role-employer"><strong>{language === 'tl' ? 'Mag-hire nang patas' : 'Employer'}</strong><span>{language === 'tl' ? 'Kumakatawan ako sa isang organisasyon.' : 'I represent an organization.'}</span></label></div></div></fieldset> : null}
                   {!isLogin && registerStep === 'category' ? <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}><legend>PWD category</legend><p className="field-help">Choose one to continue.</p><div className="disability-picker">{signupDisabilityOptions.map((option) => <label className="disability-option" key={option.value}><input type="radio" name="signup-disability" checked={disabilityTypes[0] === option.value} onChange={() => setDisabilityTypes([option.value])} /><span><strong>{option.label}</strong><small>{option.description}</small></span></label>)}</div></fieldset> : null}
-                  {isCredentialsStep || isLogin ? <div className="field"><label htmlFor="email">Email address</label><input className="input" id="email" name="email" type="email" autoComplete="email" inputMode="email" autoFocus={isLogin} required value={email} onChange={(event) => setEmail(event.target.value)} /></div> : null}
-                  {isCredentialsStep || isLogin ? <div className="field"><label htmlFor="password">Password</label><div style={{ position: 'relative' }}><input className="input" style={{ paddingRight: 48 }} id="password" name="password" type={showPassword ? 'text' : 'password'} autoComplete={isLogin ? 'current-password' : 'new-password'} minLength={12} required value={password} onChange={(event) => setPassword(event.target.value)} /><button className="icon-button" style={{ position: 'absolute', top: 2, right: 2, width: 42, height: 42, border: 0 }} type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? <EyeOff size={17} aria-hidden="true" /> : <Eye size={17} aria-hidden="true" />}</button></div><small>{language === 'tl' ? 'Hindi bababa sa 12 character. Huwag gamitin muli ang work password.' : 'At least 12 characters.'}</small></div> : null}
+                   {isCredentialsStep || isLogin ? <div className="field"><label htmlFor="email">Email address</label><input className="input" id="email" name="email" type="email" autoComplete="email" inputMode="email" required value={email} onChange={(event) => setEmail(event.target.value)} /></div> : null}
+                   {isCredentialsStep || isLogin ? <div className="field"><label htmlFor="password">Password</label><div style={{ position: 'relative' }}><input className="input" style={{ paddingRight: 48 }} id="password" name="password" type={showPassword ? 'text' : 'password'} autoComplete={isLogin ? 'current-password' : 'new-password'} minLength={isLogin ? undefined : 12} required value={password} onChange={(event) => setPassword(event.target.value)} /><button className="icon-button" style={{ position: 'absolute', top: 2, right: 2, width: 42, height: 42, border: 0 }} type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? <EyeOff size={17} aria-hidden="true" /> : <Eye size={17} aria-hidden="true" />}</button></div><small>{isLogin ? 'Enter your account password.' : language === 'tl' ? 'Hindi bababa sa 12 character. Huwag gamitin muli ang work password.' : 'At least 12 characters.'}</small></div> : null}
+                  {isLogin ? <p className="field-help"><Link className="text-link" href="/forgot-password">Forgot your password?</Link></p> : null}
                  </> : <>
 
                  <div className="profile-step-indicator" data-step-count={profileSteps.length} role="group" aria-label="Profile setup progress"><span>Step {profileStepIndex + 1} of {profileSteps.length}</span><div className="profile-step-list">{profileSteps.map((step, index) => <span className={index === profileStepIndex ? 'active' : index < profileStepIndex ? 'complete' : ''} aria-label={`Step ${index + 1}: ${step === 'identity' ? 'Identity' : step === 'work' ? 'Work' : 'Support'}`} aria-current={index === profileStepIndex ? 'step' : undefined} key={step}>{index + 1}</span>)}</div></div>

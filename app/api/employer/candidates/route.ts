@@ -11,13 +11,16 @@ function candidateReference(candidateId: string) {
 }
 
 export async function GET(request: Request) {
-  const limited = checkRateLimit(request, 'candidate-pool-read', { limit: 60, windowMs: 60 * 1000 });
+  const limited = await checkRateLimit(request, 'candidate-pool-read', { limit: 60, windowMs: 60 * 1000 });
   if (!limited.allowed) return rateLimitResponse(limited.retryAfterSeconds);
   try {
     const { supabase, user } = await getAuthenticatedContext();
     if (!user) return jsonError('Authentication required.', 401);
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
     if (profile?.role !== 'employer') return jsonError('Only employer accounts can view candidate matches.', 403);
+    const { data: verification, error: verificationError } = await supabase.from('employer_verifications').select('status').eq('employer_id', user.id).maybeSingle();
+    if (verificationError || !verification) return jsonError('Employer verification setup is missing. Apply migration 018_employer_verification.sql.', 503);
+    if (verification.status !== 'approved') return jsonError('Candidate recruitment details are available after employer verification is approved.', 403);
 
     const jobs = await getVisibleJobs(supabase, { userId: user.id, mine: true });
     const jobIds = jobs.map((job) => job.id);

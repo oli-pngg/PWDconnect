@@ -5,7 +5,7 @@ import { rankJobs } from '@/lib/matching';
 import { getCandidateSkills, getVisibleJobs } from '@/lib/server-data';
 
 export async function GET(request: Request) {
-  const limited = checkRateLimit(request, 'recommendations-read', { limit: 60, windowMs: 60 * 1000 });
+  const limited = await checkRateLimit(request, 'recommendations-read', { limit: 60, windowMs: 60 * 1000 });
   if (!limited.allowed) return rateLimitResponse(limited.retryAfterSeconds);
   try {
     const { supabase, user } = await getAuthenticatedContext();

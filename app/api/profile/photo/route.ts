@@ -1,8 +1,8 @@
 import { getAuthenticatedContext } from '@/lib/auth';
-import { bodyTooLarge, cleanText, jsonError, jsonOk } from '@/lib/http';
+import { bodyReadError, cleanText, jsonError, jsonOk, readLimitedBody } from '@/lib/http';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
-import { getProfilePhotoUrl } from '@/lib/profile-photo';
+import { getProfilePhotoUrl, isOwnedProfilePhotoPath } from '@/lib/profile-photo';
 
 const bucket = 'profile-photos';
 const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -23,13 +23,19 @@ async function hasImageSignature(file: File) {
 }
 
 export async function POST(request: Request) {
-  if (bodyTooLarge(request, 6 * 1024 * 1024)) return jsonError('Photo upload is too large.', 413);
-  const limited = checkRateLimit(request, 'profile-photo-write', { limit: 10, windowMs: 60 * 60 * 1000 });
+  const limited = await checkRateLimit(request, 'profile-photo-write', { limit: 10, windowMs: 60 * 60 * 1000 });
   if (!limited.allowed) return rateLimitResponse(limited.retryAfterSeconds);
   try {
     const { supabase, user } = await getAuthenticatedContext();
     if (!user) return jsonError('Authentication required.', 401);
-    const formData = await request.formData();
+    const body = await readLimitedBody(request, 6 * 1024 * 1024);
+    if (!body.ok) return bodyReadError(body, 'Photo upload is too large.');
+    let formData: FormData;
+    try {
+      formData = await new Response(body.bytes as unknown as BodyInit, { headers: { 'Content-Type': request.headers.get('content-type') ?? '' } }).formData();
+    } catch {
+      return jsonError('Upload a valid profile photo form.');
+    }
     const file = formData.get('photo');
     if (!(file instanceof File)) return jsonError('Choose a profile photo first.');
     if (!allowedTypes.has(file.type)) return jsonError('Use a JPG, PNG, or WebP image.');
@@ -62,18 +68,18 @@ export async function POST(request: Request) {
       return jsonError('The photo was uploaded but could not be linked to your profile.', 500);
     }
 
-    if (profileData.profile_photo_path) {
+    if (isOwnedProfilePhotoPath(profileData.profile_photo_path, user.id)) {
       await admin.storage.from(bucket).remove([profileData.profile_photo_path]);
     }
     const savedProfile = profile as unknown as { id: string; profile_photo_url: string | null; profile_photo_alt: string | null; profile_photo_path: string | null };
-    return jsonOk({ profile: { ...savedProfile, profile_photo_url: await getProfilePhotoUrl(path) } });
+    return jsonOk({ profile: { ...savedProfile, profile_photo_url: await getProfilePhotoUrl(path, user.id) } });
   } catch {
     return jsonError('The profile photo could not be uploaded.', 500);
   }
 }
 
 export async function DELETE(request: Request) {
-  const limited = checkRateLimit(request, 'profile-photo-delete', { limit: 20, windowMs: 60 * 60 * 1000 });
+  const limited = await checkRateLimit(request, 'profile-photo-delete', { limit: 20, windowMs: 60 * 60 * 1000 });
   if (!limited.allowed) return rateLimitResponse(limited.retryAfterSeconds);
   try {
     const { user } = await getAuthenticatedContext();
@@ -82,7 +88,9 @@ export async function DELETE(request: Request) {
     const { data: rawProfile, error: profileError } = await admin.from('profiles').select('profile_photo_path').eq('id', user.id).maybeSingle();
     const profile = rawProfile as unknown as { profile_photo_path: string | null } | null;
     if (profileError || !profile) return jsonError('Profile not found.', 404);
-    if (profile.profile_photo_path) await admin.storage.from(bucket).remove([profile.profile_photo_path]);
+    if (isOwnedProfilePhotoPath(profile.profile_photo_path, user.id)) {
+      await admin.storage.from(bucket).remove([profile.profile_photo_path]);
+    }
     const { error } = await admin.from('profiles').update({ profile_photo_url: null, profile_photo_alt: null, profile_photo_path: null } as never).eq('id', user.id);
     if (error) return jsonError('The profile photo could not be removed.', 500);
     return jsonOk({ removed: true });

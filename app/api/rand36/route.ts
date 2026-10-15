@@ -1,11 +1,11 @@
 import { getAuthenticatedContext } from '@/lib/auth';
-import { bodyTooLarge, jsonError, jsonOk } from '@/lib/http';
+import { bodyReadError, jsonError, jsonOk, readLimitedJsonObject } from '@/lib/http';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { scoreRand36 } from '@/lib/rand36';
 
 export async function GET(request: Request) {
-  const limited = checkRateLimit(request, 'rand36-read', { limit: 30, windowMs: 60 * 1000 });
+  const limited = await checkRateLimit(request, 'rand36-read', { limit: 30, windowMs: 60 * 1000 });
   if (!limited.allowed) return rateLimitResponse(limited.retryAfterSeconds);
   try {
     const { supabase, user } = await getAuthenticatedContext();
@@ -47,18 +47,19 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (bodyTooLarge(request, 16 * 1024)) return jsonError('Request is too large.', 413);
-  const limited = checkRateLimit(request, 'rand36-write', { limit: 5, windowMs: 60 * 60 * 1000 });
+  const limited = await checkRateLimit(request, 'rand36-write', { limit: 5, windowMs: 60 * 60 * 1000 });
   if (!limited.allowed) return rateLimitResponse(limited.retryAfterSeconds);
+  const parsedBody = await readLimitedJsonObject(request, 16 * 1024);
+  if (!parsedBody.ok) return bodyReadError(parsedBody);
   try {
     const { supabase, user } = await getAuthenticatedContext();
     if (!user) return jsonError('Authentication required.', 401);
-    const accountLimited = checkRateLimit(request, 'rand36-write-account', { limit: 5, windowMs: 60 * 60 * 1000 }, user.id);
+    const accountLimited = await checkRateLimit(request, 'rand36-write-account', { limit: 5, windowMs: 60 * 60 * 1000 }, user.id);
     if (!accountLimited.allowed) return rateLimitResponse(accountLimited.retryAfterSeconds);
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
     if (profile?.role !== 'candidate') return jsonError('Only applicants can submit RAND-36.', 403);
 
-    const body = await request.json() as { responses?: unknown };
+    const body = parsedBody.value as { responses?: unknown };
     if (!body.responses || typeof body.responses !== 'object' || Array.isArray(body.responses)) return jsonError('Submit RAND-36 responses as item choices.');
     let score: ReturnType<typeof scoreRand36>;
     try {

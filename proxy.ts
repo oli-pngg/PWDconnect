@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import type { CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { isSupabaseConfigured } from '@/lib/env';
+import { fetchWithTimeout } from '@/lib/server-fetch';
 
 const protectedPrefixes = ['/dashboard', '/jobs', '/assessment', '/profile', '/employer', '/admin', '/messages', '/applications'];
 
@@ -13,6 +14,7 @@ export async function proxy(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      global: { fetch: fetchWithTimeout },
       cookies: {
         getAll() {
           return request.cookies.getAll();

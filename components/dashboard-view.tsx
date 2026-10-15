@@ -4,7 +4,10 @@ import { ArrowUpRight, BriefcaseBusiness, CheckCircle2, FileText, MapPin, Sparkl
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { DashboardSkeleton } from '@/components/skeleton';
+import { EmployerVerificationPanel } from '@/components/employer-verification-panel';
+import { EmployerVerificationBadge } from '@/components/employer-verification-badge';
 import { StatusPill } from '@/components/status-pill';
+import type { EmployerVerificationStatus } from '@/lib/employer-verification';
 import { RAND36_SCALES } from '@/lib/rand36';
 import type { Job } from '@/lib/types';
 
@@ -12,6 +15,7 @@ type DashboardData = {
   role: 'candidate' | 'employer' | 'admin';
   profile: { full_name: string; organization_name?: string | null; location?: string | null };
   stats: Record<string, number>;
+  verificationStatus?: EmployerVerificationStatus;
   recommendations?: Job[];
   applications?: Array<{ id: string; job_id?: string; status: string; fit_score: number; created_at: string; jobs?: { title?: string } | null; matched_skills?: string[] }>;
   latestAssessment?: { score: number; total_points: number; completed_at: string } | null;
@@ -35,13 +39,17 @@ function StatCard({ label, value, note }: { label: string; value: number | strin
   return <article className="stat-card"><span>{label}</span><strong>{value}</strong><small>{note}</small></article>;
 }
 
+function greetingName(fullName: string) {
+  return fullName.trim().split(/\s+/).filter(Boolean)[0] || 'there';
+}
+
 function CandidateDashboard({ data, rand36, rand36Unavailable }: { data: DashboardData; rand36: Rand36Summary | null; rand36Unavailable: boolean }) {
-  const profileName = data.profile.full_name || 'there';
+  const profileName = greetingName(data.profile.full_name || '');
   const recommendations = data.recommendations ?? [];
   const applications = data.applications ?? [];
   return (
     <>
-       <div className="page-heading"><div><p className="eyebrow">Workspace</p><h1>Welcome back, {profileName.split(' ')[0]}.</h1></div><Link className="button" href="/jobs">Find work <ArrowUpRight size={16} aria-hidden="true" /></Link></div>
+       <div className="page-heading"><div><p className="eyebrow">Workspace</p><h1>Welcome to PWD Connect, {profileName}.</h1></div><Link className="button" href="/jobs">Find work <ArrowUpRight size={16} aria-hidden="true" /></Link></div>
       <div className="stat-grid">
         <StatCard label="Recommended fits" value={data.stats.matches ?? 0} note="based on your current skills" />
         <StatCard label="Verified skills" value={data.stats.skills ?? 0} note="assessment evidence" />
@@ -49,7 +57,7 @@ function CandidateDashboard({ data, rand36, rand36Unavailable }: { data: Dashboa
         <StatCard label="Occupational quiz" value={`${data.stats.assessment ?? 0}%`} note={data.latestAssessment ? 'latest attempt' : 'not completed'} />
       </div>
        <div className="content-grid">
-         <section className="panel" aria-labelledby="recommendations-heading"><div className="panel-header"><div><h2 id="recommendations-heading">Recommended for your strengths</h2><p>Ranked by skill overlap, verification, and location preference.</p></div><Link className="text-link" href="/jobs">View all</Link></div>{recommendations.length ? <div className="match-list">{recommendations.map((job) => <div className="match-item" key={job.id}><div><h3>{job.title}</h3><p>{job.organization_name ?? 'PWD Connect employer'} / {job.work_mode}</p><div className="match-meta"><span>{job.matched_skills?.slice(0, 3).join(', ') || 'Skill profile needed'}</span><span>{job.application_status ? <StatusPill status={job.application_status} /> : 'Open to applications'}</span></div></div><div className="fit-score" aria-label={`${job.fit_score ?? 0} percent fit`}>{job.fit_score ?? 0}%</div></div>)}</div> : <div className="empty-state"><h3>Your first recommendations are waiting.</h3><p>Complete the accessible skill assessment to unlock evidence-based matches.</p><Link className="button small" href="/assessment">Take assessment</Link></div>}</section>
+         <section className="panel" aria-labelledby="recommendations-heading"><div className="panel-header"><div><h2 id="recommendations-heading">Recommended for your strengths</h2><p>Ranked by skill overlap, verification, and location preference.</p></div><Link className="text-link" href="/jobs">View all</Link></div>{recommendations.length ? <div className="match-list">{recommendations.map((job) => <div className="match-item" key={job.id}><div><h3>{job.title}</h3><p>{job.organization_name ?? 'PWD Connect employer'} / {job.work_mode}</p><EmployerVerificationBadge approvedAt={job.employer_verified_at} /><div className="match-meta"><span>{job.matched_skills?.slice(0, 3).join(', ') || 'Skill profile needed'}</span><span>{job.application_status ? <StatusPill status={job.application_status} /> : 'Open to applications'}</span></div></div><div className="fit-score" aria-label={`${job.fit_score ?? 0} percent fit`}>{job.fit_score ?? 0}%</div></div>)}</div> : <div className="empty-state"><h3>Your first recommendations are waiting.</h3><p>Complete the accessible skill assessment to unlock evidence-based matches.</p><Link className="button small" href="/assessment">Take assessment</Link></div>}</section>
          <aside className="panel panel-accent" aria-labelledby="next-step-heading"><div className="panel-header"><div><p className="eyebrow">Next step</p><h2 id="next-step-heading">Strengthen your match.</h2></div><Sparkles size={22} aria-hidden="true" /></div><p className="muted">Verified skills improve job matches.</p><ul className="mini-list"><li><CheckCircle2 size={17} aria-hidden="true" /><div><strong>Assessment</strong><span>{data.latestAssessment ? `Last: ${formatDate(data.latestAssessment.completed_at)}` : 'No timer'}</span></div></li><li><MapPin size={17} aria-hidden="true" /><div><strong>{data.profile.location || 'Set location'}</strong><span>Local matches</span></div></li><li><FileText size={17} aria-hidden="true" /><div><strong>Profile</strong><span>Work conditions</span></div></li></ul><Link className="button secondary" href={data.latestAssessment ? '/profile' : '/assessment'}>{data.latestAssessment ? 'Review profile' : 'Take assessment'} <ArrowUpRight size={15} aria-hidden="true" /></Link></aside>
        </div>
        <section className="panel" style={{ marginTop: 18 }} aria-labelledby="rand36-overview-heading">
@@ -62,17 +70,19 @@ function CandidateDashboard({ data, rand36, rand36Unavailable }: { data: Dashboa
 }
 
 function EmployerDashboard({ data }: { data: DashboardData }) {
+  const profileName = greetingName(data.profile.full_name || '');
   const jobs = data.jobs ?? [];
   const applications = data.applications ?? [];
   return (
     <>
-      <div className="page-heading"><div><p className="eyebrow">Employer workspace</p><h1>Make room for better fits.</h1></div><Link className="button" href="/employer/jobs/new">Post an opening <ArrowUpRight size={16} aria-hidden="true" /></Link></div>
+      <div className="page-heading"><div><p className="eyebrow">Employer workspace</p><h1>Welcome to PWD Connect, {profileName}.</h1></div><Link className="button" href="/employer/jobs/new">Post an opening <ArrowUpRight size={16} aria-hidden="true" /></Link></div>
+      <EmployerVerificationPanel />
       <div className="stat-grid"><StatCard label="Your openings" value={data.stats.jobs ?? 0} note="draft and published" /><StatCard label="Published" value={data.stats.published ?? 0} note="visible to candidates" /><StatCard label="Candidate matches" value={data.stats.applicants ?? 0} note="skills-first previews" /><StatCard label="In progress" value={data.stats.shortlisted ?? 0} note="shortlisted or interview" /></div>
       <div className="content-grid">
         <section className="panel" aria-labelledby="openings-heading"><div className="panel-header"><div><h2 id="openings-heading">Your openings</h2><p>Keep requirements specific and accommodation-ready.</p></div><Link className="text-link" href="/employer/jobs">Manage all</Link></div>{jobs.length ? <ul className="mini-list">{jobs.slice(0, 5).map((job) => <li key={job.id}><BriefcaseBusiness size={17} aria-hidden="true" /><div><strong>{job.title}</strong><span><StatusPill status={job.status} /> / posted {formatDate(job.created_at)}</span></div></li>)}</ul> : <div className="empty-state"><h3>Your first opening starts here.</h3><p>Describe the work, the skills, and the accommodations that make success possible.</p><Link className="button small" href="/employer/jobs/new">Create opening</Link></div>}</section>
-        <section className="panel panel-accent" aria-labelledby="fair-hiring-heading"><div className="panel-header"><div><p className="eyebrow">Fair hiring cue</p><h2 id="fair-hiring-heading">Start with evidence, not assumptions.</h2></div><UsersRound size={22} aria-hidden="true" /></div><p className="muted">Initial candidate previews hide names and disability information. Review verified skills and the fit explanation before deciding whether to reveal more.</p><Link className="button secondary" href="/employer/candidates">Review candidates <ArrowUpRight size={15} aria-hidden="true" /></Link></section>
+        {data.verificationStatus === 'approved' ? <section className="panel panel-accent" aria-labelledby="fair-hiring-heading"><div className="panel-header"><div><p className="eyebrow">Fair hiring cue</p><h2 id="fair-hiring-heading">Start with evidence, not assumptions.</h2></div><UsersRound size={22} aria-hidden="true" /></div><p className="muted">Initial candidate previews hide names and disability information. Review verified skills and the fit explanation before deciding whether to reveal more.</p><Link className="button secondary" href="/employer/candidates">Review candidates <ArrowUpRight size={15} aria-hidden="true" /></Link></section> : <section className="panel panel-accent" aria-labelledby="fair-hiring-heading"><div className="panel-header"><div><p className="eyebrow">Candidate privacy</p><h2 id="fair-hiring-heading">Applicant details are restricted.</h2></div><UsersRound size={22} aria-hidden="true" /></div><p className="muted">Only approved employers can review private applicant recruitment data. Existing application records remain intact while review is pending.</p><a className="button secondary" href="#employer-verification-heading">Review verification status</a></section>}
       </div>
-      <section className="panel" style={{ marginTop: 18 }} aria-labelledby="employer-applications-heading"><div className="panel-header"><div><h2 id="employer-applications-heading">Latest candidate signals</h2><p>Candidate references remain pseudonymous during initial screening.</p></div><Link className="text-link" href="/employer/candidates">Open candidate pool</Link></div>{applications.length ? <div className="candidate-list">{applications.slice(0, 6).map((application) => <div className="candidate-row" key={application.id}><div><h3>Candidate preview / {Math.round(Number(application.fit_score))}% fit</h3><p>{application.matched_skills?.slice(0, 4).join(', ') || 'Skills profile available'} / received {formatDate(application.created_at)}</p></div><StatusPill status={application.status} /><Link className="button secondary small" href="/employer/candidates">Review</Link></div>)}</div> : <div className="empty-state"><h3>No candidate activity yet.</h3><p>Publish an opening and the skills-first application pool will appear here.</p></div>}</section>
+      <section className="panel" style={{ marginTop: 18 }} aria-labelledby="employer-applications-heading"><div className="panel-header"><div><h2 id="employer-applications-heading">Latest candidate signals</h2><p>Candidate references remain pseudonymous during initial screening.</p></div>{data.verificationStatus === 'approved' ? <Link className="text-link" href="/employer/candidates">Open candidate pool</Link> : null}</div>{data.verificationStatus !== 'approved' ? <div className="notice">Candidate details stay private until your employer verification is approved.</div> : applications.length ? <div className="candidate-list">{applications.slice(0, 6).map((application) => <div className="candidate-row" key={application.id}><div><h3>Candidate preview / {Math.round(Number(application.fit_score))}% fit</h3><p>{application.matched_skills?.slice(0, 4).join(', ') || 'Skills profile available'} / received {formatDate(application.created_at)}</p></div><StatusPill status={application.status} /><Link className="button secondary small" href="/employer/candidates">Review</Link></div>)}</div> : <div className="empty-state"><h3>No candidate activity yet.</h3><p>Publish an opening and the skills-first application pool will appear here.</p></div>}</section>
     </>
   );
 }

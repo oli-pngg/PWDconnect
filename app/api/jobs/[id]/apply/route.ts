@@ -7,7 +7,7 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import type { Job } from '@/lib/types';
 
 export async function POST(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const limited = checkRateLimit(_request, 'job-application-write', { limit: 15, windowMs: 60 * 60 * 1000 });
+  const limited = await checkRateLimit(_request, 'job-application-write', { limit: 15, windowMs: 60 * 60 * 1000 });
   if (!limited.allowed) return rateLimitResponse(limited.retryAfterSeconds);
   try {
     const { supabase, user } = await getAuthenticatedContext();

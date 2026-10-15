@@ -2,6 +2,7 @@ import 'server-only';
 
 import { createClient } from '@supabase/supabase-js';
 import { getServerSupabaseEnv } from '@/lib/server-env';
+import { fetchWithTimeout } from '@/lib/server-fetch';
 
 let client: ReturnType<typeof createClient> | undefined;
 
@@ -15,6 +16,7 @@ export function createSupabaseAdminClient() {
 
   const { url, serviceRoleKey } = getServerSupabaseEnv();
   client = createClient(url, serviceRoleKey, {
+    global: { fetch: fetchWithTimeout },
     auth: { autoRefreshToken: false, persistSession: false }
   });
   return client;

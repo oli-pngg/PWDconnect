@@ -1,6 +1,6 @@
 'use client';
 
-import { Accessibility, ClipboardCheck, FilePlus2, LayoutDashboard, ListChecks, Menu, MessageCircle, Search, Settings, UsersRound, X } from 'lucide-react';
+import { Accessibility, Building2, ClipboardCheck, FilePlus2, LayoutDashboard, ListChecks, Menu, MessageCircle, Search, Settings, UsersRound, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -28,7 +28,8 @@ const employerLinks = [
 ];
 
 const adminLinks = [
-  { href: '/dashboard', label: 'Overview', tagalog: 'Buod', icon: LayoutDashboard },
+  { href: '/admin', label: 'Overview', tagalog: 'Buod', icon: LayoutDashboard },
+  { href: '/admin/employers', label: 'Employer verification', tagalog: 'Pag-verify ng employer', icon: Building2 },
   { href: '/admin/evaluation', label: 'Evaluation', tagalog: 'Pagsusuri', icon: Accessibility },
   { href: '/profile', label: 'My profile', tagalog: 'Aking profile', icon: Settings }
 ];
@@ -39,14 +40,16 @@ function roleLabel(role: UserRole, language: 'en' | 'tl' = 'en') {
   return language === 'tl' ? 'Workspace ng kandidato' : 'Candidate workspace';
 }
 
-export function AppShell({ profile, children }: { profile: Profile; children: React.ReactNode }) {
+export function AppShell({ profile, children, employerVerified = false }: { profile: Profile; children: React.ReactNode; employerVerified?: boolean }) {
   const pathname = usePathname();
   const { language } = useLanguage();
   const [open, setOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement | null>(null);
   const sidebarRef = useRef<HTMLDivElement | null>(null);
   const wasOpen = useRef(false);
-  const links = profile.role === 'employer' ? employerLinks : profile.role === 'admin' ? adminLinks : candidateLinks;
+  const links = profile.role === 'employer'
+    ? employerVerified ? employerLinks : employerLinks.filter((link) => link.href !== '/employer/candidates' && link.href !== '/messages')
+    : profile.role === 'admin' ? adminLinks : candidateLinks;
   const currentLink = [...links].sort((left, right) => right.href.length - left.href.length).find((link) => pathname === link.href || pathname.startsWith(`${link.href}/`));
   const displayName = profile.organization_name || profile.full_name || profile.email;
   const workspaceName = language === 'tl'

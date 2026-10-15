@@ -59,6 +59,7 @@ export type Job = {
   created_at: string;
   job_skills?: JobSkill[];
   organization_name?: string | null;
+  employer_verified_at?: string | null;
   fit_score?: number;
   matched_skills?: string[];
   missing_skills?: string[];

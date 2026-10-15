@@ -25,6 +25,7 @@ export function NewJobForm() {
   const [questions, setQuestions] = useState<QuestionDraft[]>(() => Array.from({ length: MIN_OCCUPATIONAL_QUESTIONS }, blankQuestion));
   const [form, setForm] = useState({ title: '', description: '', assessmentCategory: '', location: 'Legazpi City, Albay', workMode: 'Flexible', employmentType: 'Full-time', salaryMin: '', salaryMax: '', accommodations: '', status: 'draft' });
   const [loading, setLoading] = useState(true);
+  const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -39,6 +40,13 @@ export function NewJobForm() {
       if (!response.ok) throw new Error(payload.error || 'Unable to load skills.');
       setSkills(payload.skills ?? []);
     }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'Unable to load skills.')).finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/employer/verification', { cache: 'no-store' }).then(async (response) => {
+      const payload = await response.json() as { verification?: { status?: string } };
+      if (response.ok) setVerificationStatus(payload.verification?.status ?? null);
+    }).catch(() => setVerificationStatus(null));
   }, []);
 
   function setField(field: keyof typeof form, value: string) { setForm((current) => ({ ...current, [field]: value })); }
@@ -75,6 +83,7 @@ export function NewJobForm() {
     if (!form.description.trim() || form.description.trim().length < 20) { setError('Add a description with at least 20 characters.'); return; }
     if (form.assessmentCategory.trim().length < 2) { setError('Add an assessment category such as Barista, Web development, or Graphic design.'); return; }
     if (!selectedSkills.length) { setError('Select at least one required skill.'); return; }
+    if (form.status === 'published' && verificationStatus !== 'approved') { setError('You can save a draft now; approval is required before publishing.'); return; }
     if (form.salaryMin && form.salaryMax && Number(form.salaryMin) > Number(form.salaryMax)) { setError('The minimum salary cannot be greater than the maximum salary.'); return; }
     if (!isValidOccupationalQuestionCount(questions.length)) { setError(`Add ${MIN_OCCUPATIONAL_QUESTIONS} to ${MAX_OCCUPATIONAL_QUESTIONS} assessment questions.`); return; }
     if (questions.some((question) => question.prompt.trim().length < 3 || question.options.filter(Boolean).length < 2 || new Set(question.options.filter(Boolean)).size !== question.options.filter(Boolean).length || !question.correctOption || !question.options.includes(question.correctOption) || !question.skillId)) {
@@ -115,14 +124,15 @@ export function NewJobForm() {
   return <>
     <div className="page-heading"><div><p className="eyebrow">New opening</p><h1>Post an opening.</h1></div><Link className="button secondary small" href="/employer/jobs"><ArrowLeft size={15} aria-hidden="true" /> Back</Link></div>
     <form className="panel form-stack" onSubmit={submit} noValidate>
-      <div className="panel-header"><div><h2>Opening details</h2><p>Skills and assessment power matching.</p></div><FilePlus2 size={20} aria-hidden="true" /></div>
+       <div className="panel-header"><div><h2>Opening details</h2><p>Skills and assessment power matching.</p></div><FilePlus2 size={20} aria-hidden="true" /></div>
+       {verificationStatus === 'approved' ? <div className="form-success" role="status">Employer verification approved. You may publish after completing the opening requirements.</div> : <div className="notice" role="status">You may prepare and save draft openings. Only approved employers can publish new vacancies.</div>}
       <div className="field-grid two">
         <label className="field" htmlFor="job-title"><span>Job title</span><input className="input" id="job-title" value={form.title} onChange={(event) => setField('title', event.target.value)} maxLength={120} minLength={3} required placeholder="For example: Barista" /></label>
         <label className="field" htmlFor="assessment-category"><span>Assessment category</span><input className="input" id="assessment-category" value={form.assessmentCategory} onChange={(event) => setField('assessmentCategory', event.target.value)} maxLength={80} required placeholder="For example: Barista" /><small>Use the same category name for related openings.</small></label>
       </div>
       <div className="field-grid two">
         <label className="field" htmlFor="employment-type"><span>Employment type</span><select className="select" id="employment-type" value={form.employmentType} onChange={(event) => setField('employmentType', event.target.value)}><option>Full-time</option><option>Part-time</option><option>Contract</option><option>Internship</option></select></label>
-        <label className="field" htmlFor="job-status"><span>Opening status</span><select className="select" id="job-status" value={form.status} onChange={(event) => setField('status', event.target.value)}><option value="draft">Save as draft</option><option value="published">Publish now</option></select></label>
+        <label className="field" htmlFor="job-status"><span>Opening status</span><select className="select" id="job-status" value={verificationStatus === 'approved' ? form.status : 'draft'} onChange={(event) => setField('status', event.target.value)}><option value="draft">Save as draft</option>{verificationStatus === 'approved' ? <option value="published">Publish now</option> : null}</select></label>
       </div>
       <label className="field" htmlFor="job-description"><span>What will this person do?</span><textarea className="textarea" id="job-description" value={form.description} onChange={(event) => setField('description', event.target.value)} minLength={20} maxLength={5000} required placeholder="List the regular tasks, expected outcomes, and tools. Avoid requirements that are not needed for the work." /></label>
       <div className="field-grid two">

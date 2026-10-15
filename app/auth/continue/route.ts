@@ -7,7 +7,10 @@ export async function GET(request: Request) {
   const { supabase, user } = await getAuthenticatedContext();
   if (!user) return NextResponse.redirect(new URL('/login', requestUrl.origin));
 
-  const { data: profile } = await supabase.from('profiles').select('profile_completed').eq('id', user.id).maybeSingle();
-  const destination = profile?.profile_completed ? safeNext(requestUrl.searchParams.get('next')) : '/profile?setup=1';
+  const { data: profile } = await supabase.from('profiles').select('role, profile_completed').eq('id', user.id).maybeSingle();
+  const requestedDestination = safeNext(requestUrl.searchParams.get('next'));
+  const destination = profile?.profile_completed
+    ? profile.role === 'admin' && requestedDestination === '/dashboard' ? '/admin' : requestedDestination
+    : '/profile?setup=1';
   return NextResponse.redirect(new URL(destination, requestUrl.origin));
 }

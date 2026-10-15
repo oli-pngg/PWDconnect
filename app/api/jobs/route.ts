@@ -1,5 +1,5 @@
 import { getAuthenticatedContext } from '@/lib/auth';
-import { bodyTooLarge, cleanStringArray, cleanText, cleanUuidArray, jsonError, jsonOk, safeInteger } from '@/lib/http';
+import { bodyReadError, cleanStringArray, cleanText, cleanUuidArray, jsonError, jsonOk, readLimitedJsonObject, safeInteger } from '@/lib/http';
 import { calculateFitScore } from '@/lib/matching';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { getCandidateSkills, getVisibleJobs } from '@/lib/server-data';
@@ -8,7 +8,7 @@ import { isValidOccupationalQuestionCount, MIN_OCCUPATIONAL_QUESTIONS } from '@/
 import { MAX_REQUIRED_JOB_SKILLS } from '@/lib/skill-rules';
 
 export async function GET(request: Request) {
-  const limited = checkRateLimit(request, 'jobs-read', { limit: 120, windowMs: 60 * 1000 });
+  const limited = await checkRateLimit(request, 'jobs-read', { limit: 120, windowMs: 60 * 1000 });
   if (!limited.allowed) return rateLimitResponse(limited.retryAfterSeconds);
   try {
     const { supabase, user } = await getAuthenticatedContext();
@@ -37,9 +37,10 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (bodyTooLarge(request, 192 * 1024)) return jsonError('Request is too large.', 413);
-  const limited = checkRateLimit(request, 'jobs-write', { limit: 20, windowMs: 60 * 60 * 1000 });
+  const limited = await checkRateLimit(request, 'jobs-write', { limit: 20, windowMs: 60 * 60 * 1000 });
   if (!limited.allowed) return rateLimitResponse(limited.retryAfterSeconds);
+  const parsedBody = await readLimitedJsonObject(request, 192 * 1024);
+  if (!parsedBody.ok) return bodyReadError(parsedBody);
   try {
     const { supabase, user } = await getAuthenticatedContext();
     if (!user) return jsonError('Authentication required.', 401);
@@ -49,8 +50,10 @@ export async function POST(request: Request) {
       return jsonError('Your employer profile could not be verified. Run all Supabase migrations, then sign out and sign in again.', 500);
     }
     if (profile?.role !== 'employer') return jsonError('Only employer accounts can post openings.', 403);
+    const { data: verification, error: verificationError } = await supabase.from('employer_verifications').select('status').eq('employer_id', user.id).maybeSingle();
+    if (verificationError || !verification) return jsonError('Employer verification setup is missing. Apply migration 018_employer_verification.sql.', 503);
 
-    const body = await request.json() as Record<string, unknown>;
+    const body = parsedBody.value;
     const title = cleanText(body.title, 120);
     const description = cleanText(body.description, 5000);
     const requestedSkillIds = Array.isArray(body.skillIds) ? body.skillIds : [];
@@ -78,6 +81,9 @@ export async function POST(request: Request) {
     }
 
     const status = body.status === 'published' ? 'published' : 'draft';
+    if (status === 'published' && verification.status !== 'approved') {
+      return jsonError('Your opening is saved only as a draft until your business verification is approved.', 403);
+    }
     const { data: validSkills, error: skillError } = await supabase.from('skills').select('id').in('id', skillIds).eq('is_active', true);
     if (skillError) {
       console.error('[jobs] skill validation failed', { code: skillError.code, message: skillError.message });

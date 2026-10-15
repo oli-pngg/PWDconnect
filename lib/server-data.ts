@@ -47,15 +47,23 @@ export async function attachEmployerNames(jobs: Job[]) {
   if (!employerIds.length) return jobs;
 
   const admin = createSupabaseAdminClient();
-  const { data, error } = await admin
-    .from('profiles')
-    .select('id, organization_name')
-    .in('id', employerIds);
-  if (error) throw error;
+  const [{ data, error }, { data: verificationData, error: verificationError }] = await Promise.all([
+    admin.from('profiles').select('id, organization_name').in('id', employerIds),
+    admin.from('employer_verifications').select('employer_id, status, approved_at').in('employer_id', employerIds)
+  ]);
+  if (error || verificationError) throw error ?? verificationError;
 
   const profiles = (data ?? []) as unknown as Array<{ id: string; organization_name: string | null }>;
+  const verificationRows = (verificationData ?? []) as unknown as Array<{ employer_id: string; status: string; approved_at: string | null }>;
+  const verifiedAtByEmployer = new Map(verificationRows
+    .filter((verification) => verification.status === 'approved' && verification.approved_at)
+    .map((verification) => [verification.employer_id, verification.approved_at]));
   const names = new Map(profiles.map((profile) => [profile.id, profile.organization_name]));
-  return jobs.map((job) => ({ ...job, organization_name: names.get(job.employer_id) ?? 'PWD Connect employer' }));
+  return jobs.map((job) => ({
+    ...job,
+    organization_name: names.get(job.employer_id) ?? 'PWD Connect employer',
+    employer_verified_at: verifiedAtByEmployer.get(job.employer_id) ?? null
+  }));
 }
 
 export function one<T>(value: T | T[] | null | undefined) {

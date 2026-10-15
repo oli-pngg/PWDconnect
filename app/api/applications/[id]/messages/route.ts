@@ -1,6 +1,6 @@
 import { getApplicationAccess } from '@/lib/application-access';
 import { getAuthenticatedContext } from '@/lib/auth';
-import { bodyTooLarge, cleanText, jsonError, jsonOk } from '@/lib/http';
+import { bodyReadError, cleanText, jsonError, jsonOk, readLimitedJsonObject } from '@/lib/http';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 
@@ -12,7 +12,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   try {
     const { user } = await getAuthenticatedContext();
     if (!user) return jsonError('Authentication required.', 401);
-    const limited = checkRateLimit(_request, 'application-messages-read', { limit: 60, windowMs: 60 * 1000 }, user.id);
+    const limited = await checkRateLimit(_request, 'application-messages-read', { limit: 60, windowMs: 60 * 1000 }, user.id);
     if (!limited.allowed) return rateLimitResponse(limited.retryAfterSeconds);
     const { id } = await context.params;
     if (!validUuid(id)) return jsonError('Invalid application.', 400);
@@ -50,15 +50,16 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   try {
     const { user } = await getAuthenticatedContext();
     if (!user) return jsonError('Authentication required.', 401);
-    if (bodyTooLarge(request, 16 * 1024)) return jsonError('Message is too large.', 413);
-    const limited = checkRateLimit(request, 'application-messages-write', { limit: 20, windowMs: 10 * 60 * 1000 }, user.id);
+    const limited = await checkRateLimit(request, 'application-messages-write', { limit: 20, windowMs: 10 * 60 * 1000 }, user.id);
     if (!limited.allowed) return rateLimitResponse(limited.retryAfterSeconds);
     const { id } = await context.params;
     if (!validUuid(id)) return jsonError('Invalid application.', 400);
     const access = await getApplicationAccess(user.id, id);
     if (!access) return jsonError('Application not found.', 404);
 
-    const body = await request.json() as { message?: unknown };
+    const parsedBody = await readLimitedJsonObject(request, 16 * 1024);
+    if (!parsedBody.ok) return bodyReadError(parsedBody, 'Message is too large.');
+    const body = parsedBody.value as { message?: unknown };
     const message = cleanText(body.message, 4000);
     if (!message) return jsonError('Write a message before sending.');
 

@@ -53,5 +53,9 @@ export default async function ProtectedLayout({ children }: Readonly<{ children:
     return <AppShell profile={fallbackProfile}>{children}</AppShell>;
   }
 
-  return <AppShell profile={profile as Profile}>{children}</AppShell>;
+  const verification = profile.role === 'employer'
+    ? await supabase.from('employer_verifications').select('status').eq('employer_id', user.id).maybeSingle()
+    : null;
+  const employerVerified = verification?.data?.status === 'approved';
+  return <AppShell profile={profile as Profile} employerVerified={employerVerified}>{children}</AppShell>;
 }

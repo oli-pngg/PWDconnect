@@ -1,6 +1,6 @@
 import { getApplicationAccess } from '@/lib/application-access';
 import { getAuthenticatedContext } from '@/lib/auth';
-import { bodyTooLarge, cleanText, jsonError, jsonOk } from '@/lib/http';
+import { bodyReadError, cleanText, jsonError, jsonOk, readLimitedJsonObject } from '@/lib/http';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 
@@ -18,8 +18,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   try {
     const { user } = await getAuthenticatedContext();
     if (!user) return jsonError('Authentication required.', 401);
-    if (bodyTooLarge(request, 16 * 1024)) return jsonError('Offer is too large.', 413);
-    const limited = checkRateLimit(request, 'application-offer-write', { limit: 10, windowMs: 60 * 60 * 1000 }, user.id);
+    const limited = await checkRateLimit(request, 'application-offer-write', { limit: 10, windowMs: 60 * 60 * 1000 }, user.id);
     if (!limited.allowed) return rateLimitResponse(limited.retryAfterSeconds);
     const { id } = await context.params;
     if (!validUuid(id)) return jsonError('Invalid application.', 400);
@@ -28,7 +27,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (access.participantRole !== 'employer') return jsonError('Only the employer can send an offer.', 403);
     if (access.applicationStatus === 'rejected' || access.applicationStatus === 'hired') return jsonError('This application is no longer available for a new offer.', 409);
 
-    const body = await request.json() as { message?: unknown; compensation?: unknown; startDate?: unknown };
+    const parsedBody = await readLimitedJsonObject(request, 16 * 1024);
+    if (!parsedBody.ok) return bodyReadError(parsedBody, 'Offer is too large.');
+    const body = parsedBody.value as { message?: unknown; compensation?: unknown; startDate?: unknown };
     const message = cleanText(body.message, 4000);
     const compensation = cleanText(body.compensation, 200) || null;
     const startDate = cleanText(body.startDate, 10) || null;

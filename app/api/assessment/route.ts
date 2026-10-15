@@ -1,7 +1,7 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAuthenticatedContext } from '@/lib/auth';
-import { bodyTooLarge, cleanText, jsonError, jsonOk } from '@/lib/http';
+import { bodyReadError, cleanText, jsonError, jsonOk, readLimitedJsonObject } from '@/lib/http';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { QUESTIONS_PER_ATTEMPT } from '@/lib/assessment-rules';
@@ -26,6 +26,7 @@ type AssessmentJob = {
 };
 
 type AssessmentToken = {
+  sessionId: string;
   userId: string;
   jobId: string | null;
   category: string;
@@ -56,8 +57,13 @@ function verifyAssessmentToken(value: unknown) {
   const expectedBytes = Buffer.from(expected);
   if (receivedBytes.length !== expectedBytes.length || !timingSafeEqual(receivedBytes, expectedBytes)) return null;
   try {
-    const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8')) as AssessmentToken;
-    return payload.expiresAt > Date.now() && Array.isArray(payload.questionIds) ? payload : null;
+    const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8')) as Partial<AssessmentToken>;
+    const validSessionId = typeof payload.sessionId === 'string' && /^[0-9a-f-]{36}$/i.test(payload.sessionId);
+    if (!validSessionId || typeof payload.userId !== 'string' || typeof payload.category !== 'string') return null;
+    if (payload.jobId !== null && typeof payload.jobId !== 'string') return null;
+    if (typeof payload.expiresAt !== 'number' || !Number.isFinite(payload.expiresAt) || payload.expiresAt <= Date.now()) return null;
+    if (!Array.isArray(payload.questionIds) || !payload.questionIds.every((id) => typeof id === 'string')) return null;
+    return payload as AssessmentToken;
   } catch {
     return null;
   }
@@ -114,7 +120,7 @@ function publicQuestions(data: AssessmentRow[]) {
 }
 
 export async function GET(request: Request) {
-  const limited = checkRateLimit(request, 'assessment-read', { limit: 60, windowMs: 60 * 1000 });
+  const limited = await checkRateLimit(request, 'assessment-read', { limit: 60, windowMs: 60 * 1000 });
   if (!limited.allowed) return rateLimitResponse(limited.retryAfterSeconds);
   try {
     const { supabase, user } = await getAuthenticatedContext();
@@ -141,7 +147,7 @@ export async function GET(request: Request) {
         ? shuffle(available.filter((question) => !question.job_id && categoryKey(question.assessment_category) === categoryKey(selectedCategory))).slice(0, QUESTIONS_PER_ATTEMPT)
         : [];
     const assessmentToken = selectedCategory && selectedQuestions.length
-      ? signAssessmentToken({ userId: user.id, jobId: selectedJob?.id ?? null, category: selectedCategory, questionIds: selectedQuestions.map((question) => question.id), expiresAt: Date.now() + 30 * 60 * 1000 })
+      ? signAssessmentToken({ sessionId: randomUUID(), userId: user.id, jobId: selectedJob?.id ?? null, category: selectedCategory, questionIds: selectedQuestions.map((question) => question.id), expiresAt: Date.now() + 30 * 60 * 1000 })
       : null;
     const { data: latest } = await supabase.from('assessment_attempts').select('id, score, total_points, completed_at, assessment_category, job_id').eq('candidate_id', user.id).order('completed_at', { ascending: false }).limit(1).maybeSingle();
     return jsonOk({ jobs, categories: [...categoryLabels.values()], selectedJob, selectedCategory, assessmentToken, questions: publicQuestions(selectedQuestions), latestAttempt: latest ?? null });
@@ -151,17 +157,18 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (bodyTooLarge(request, 64 * 1024)) return jsonError('Request is too large.', 413);
-  const limited = checkRateLimit(request, 'assessment-write', { limit: 5, windowMs: 60 * 60 * 1000 });
+  const limited = await checkRateLimit(request, 'assessment-write', { limit: 5, windowMs: 60 * 60 * 1000 });
   if (!limited.allowed) return rateLimitResponse(limited.retryAfterSeconds);
+  const parsedBody = await readLimitedJsonObject(request, 64 * 1024);
+  if (!parsedBody.ok) return bodyReadError(parsedBody);
   try {
     const { supabase, user } = await getAuthenticatedContext();
     if (!user) return jsonError('Authentication required.', 401);
-    const accountLimited = checkRateLimit(request, 'assessment-write-account', { limit: 5, windowMs: 60 * 60 * 1000 }, user.id);
+    const accountLimited = await checkRateLimit(request, 'assessment-write-account', { limit: 5, windowMs: 60 * 60 * 1000 }, user.id);
     if (!accountLimited.allowed) return rateLimitResponse(accountLimited.retryAfterSeconds);
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
     if (profile?.role !== 'candidate') return jsonError('Only candidate accounts can submit the assessment.', 403);
-    const body = await request.json() as { responses?: unknown; assessmentCategory?: unknown; jobId?: unknown; assessmentToken?: unknown; accommodationNotes?: unknown };
+    const body = parsedBody.value as { responses?: unknown; assessmentCategory?: unknown; jobId?: unknown; assessmentToken?: unknown; accommodationNotes?: unknown };
     let category = cleanText(body.assessmentCategory, 80);
     const jobId = cleanText(body.jobId, 40);
     if (jobId && !/^[0-9a-f-]{36}$/i.test(jobId)) return jsonError('Select a valid opening for the assessment.');
@@ -215,6 +222,7 @@ export async function POST(request: Request) {
     const score = scored.reduce((sum, response) => sum + response.pointsAwarded, 0);
     const totalPoints = questions.reduce((sum, question) => sum + question.points, 0);
     const { data: rawAttempt, error: attemptError } = await admin.from('assessment_attempts').insert({
+      session_id: token.sessionId,
       candidate_id: user.id,
       score,
       total_points: totalPoints,
@@ -223,6 +231,7 @@ export async function POST(request: Request) {
       accommodation_notes: cleanText(body.accommodationNotes, 500) || null
     } as never).select('id, score, total_points, completed_at, assessment_category, job_id').single();
     const attempt = rawAttempt as unknown as { id: string; score: number; total_points: number; completed_at: string; assessment_category: string; job_id: string | null } | null;
+    if (attemptError?.code === '23505') return jsonError('This assessment session was already submitted. Reload the questions to start a new attempt.', 409);
     if (attemptError || !attempt) return jsonError('Unable to save your assessment result.', 500);
 
     const { error: responseError } = await admin.from('assessment_responses').insert(scored.map((response) => ({

@@ -1,12 +1,12 @@
 import { getAuthenticatedContext } from '@/lib/auth';
-import { jsonError, jsonOk } from '@/lib/http';
+import { bodyReadError, jsonError, jsonOk, readLimitedJsonObject } from '@/lib/http';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 
 const statuses = new Set(['draft', 'published', 'closed']);
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
-  const limited = checkRateLimit(request, 'job-status-write', { limit: 30, windowMs: 60 * 60 * 1000 });
+  const limited = await checkRateLimit(request, 'job-status-write', { limit: 30, windowMs: 60 * 60 * 1000 });
   if (!limited.allowed) return rateLimitResponse(limited.retryAfterSeconds);
   try {
     const { supabase, user } = await getAuthenticatedContext();
@@ -15,9 +15,16 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     if (!/^[0-9a-f-]{36}$/i.test(id)) return jsonError('Invalid opening.', 400);
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
     if (profile?.role !== 'employer') return jsonError('Only employers can update openings.', 403);
-    const body = await request.json() as { status?: unknown };
+    const parsedBody = await readLimitedJsonObject(request, 16 * 1024);
+    if (!parsedBody.ok) return bodyReadError(parsedBody);
+    const body = parsedBody.value as { status?: unknown };
     const status = typeof body.status === 'string' ? body.status : '';
     if (!statuses.has(status)) return jsonError('Choose a valid opening status.');
+    if (status === 'published') {
+      const { data: verification, error: verificationError } = await supabase.from('employer_verifications').select('status').eq('employer_id', user.id).maybeSingle();
+      if (verificationError || !verification) return jsonError('Employer verification setup is missing. Apply migration 018_employer_verification.sql.', 503);
+      if (verification.status !== 'approved') return jsonError('Your opening cannot be published until your business verification is approved.', 403);
+    }
 
     const admin = createSupabaseAdminClient();
     const { data: rawJob } = await admin.from('jobs').select('id, employer_id').eq('id', id).maybeSingle();

@@ -49,6 +49,16 @@ export async function getApplicationAccess(userId: string, applicationId: string
       ? 'employer'
       : null;
   if (!participantRole) return null;
+  if (participantRole === 'employer') {
+    const { data: rawVerification, error: verificationError } = await admin
+      .from('employer_verifications')
+      .select('status')
+      .eq('employer_id', userId)
+      .maybeSingle();
+    if (verificationError) throw verificationError;
+    const verification = rawVerification as unknown as { status: string } | null;
+    if (verification?.status !== 'approved') return null;
+  }
 
   let participantLabel = candidateReference(application.candidate_id);
   if (participantRole === 'candidate') {

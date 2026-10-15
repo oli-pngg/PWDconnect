@@ -1,20 +1,21 @@
 import { getAuthenticatedContext } from '@/lib/auth';
-import { bodyTooLarge, jsonError, jsonOk } from '@/lib/http';
+import { bodyReadError, jsonError, jsonOk, readLimitedJsonObject } from '@/lib/http';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 
 const POLICY_VERSION = 'rand36-processing-v1';
 
 export async function POST(request: Request) {
-  if (bodyTooLarge(request, 8 * 1024)) return jsonError('Request is too large.', 413);
-  const limited = checkRateLimit(request, 'rand36-consent', { limit: 10, windowMs: 60 * 60 * 1000 });
+  const limited = await checkRateLimit(request, 'rand36-consent', { limit: 10, windowMs: 60 * 60 * 1000 });
   if (!limited.allowed) return rateLimitResponse(limited.retryAfterSeconds);
   try {
     const { supabase, user } = await getAuthenticatedContext();
     if (!user) return jsonError('Authentication required.', 401);
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
     if (profile?.role !== 'candidate') return jsonError('Only applicants can change RAND-36 consent.', 403);
-    const body = await request.json() as { granted?: unknown };
+    const parsedBody = await readLimitedJsonObject(request, 8 * 1024);
+    if (!parsedBody.ok) return bodyReadError(parsedBody);
+    const body = parsedBody.value as { granted?: unknown };
     if (typeof body.granted !== 'boolean') return jsonError('Choose whether to consent to RAND-36 processing.');
 
     const admin = createSupabaseAdminClient() as unknown as {

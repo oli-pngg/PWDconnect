@@ -1,15 +1,17 @@
-import { bodyTooLarge, cleanText, jsonError, jsonOk } from '@/lib/http';
+import { bodyReadError, cleanText, jsonError, jsonOk, readLimitedJsonObject } from '@/lib/http';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 
 export async function POST(request: Request) {
-  if (bodyTooLarge(request, 16 * 1024)) return jsonError('Request is too large.', 413);
-  const body = await request.json().catch(() => null) as Record<string, unknown> | null;
-  const email = cleanText(body?.email, 254).toLowerCase();
-  const password = typeof body?.password === 'string' ? body.password : '';
-  const limited = checkRateLimit(request, `auth-sign-in:${email || 'unknown'}`, { limit: 8, windowMs: 10 * 60 * 1000 });
-  if (!limited.allowed) return rateLimitResponse(limited.retryAfterSeconds);
-  if (!email || !email.includes('@') || password.length < 12) return jsonError('Enter a valid email and a password with at least 12 characters.');
+  const ipLimited = await checkRateLimit(request, 'auth-sign-in-ip', { limit: 30, windowMs: 10 * 60 * 1000 });
+  if (!ipLimited.allowed) return rateLimitResponse(ipLimited.retryAfterSeconds);
+  const parsedBody = await readLimitedJsonObject(request, 16 * 1024);
+  if (!parsedBody.ok) return bodyReadError(parsedBody);
+  const email = cleanText(parsedBody.value.email, 254).toLowerCase();
+  const password = typeof parsedBody.value.password === 'string' ? parsedBody.value.password : '';
+  const accountLimited = await checkRateLimit(request, 'auth-sign-in-account', { limit: 8, windowMs: 10 * 60 * 1000 }, email || 'unknown');
+  if (!accountLimited.allowed) return rateLimitResponse(accountLimited.retryAfterSeconds);
+  if (!email || !email.includes('@') || !password) return jsonError('Enter a valid email and password.');
 
   try {
     const supabase = await createSupabaseServerClient();

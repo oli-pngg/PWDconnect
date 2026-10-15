@@ -1,6 +1,6 @@
 import { getAuthenticatedContext } from '@/lib/auth';
 import { DISABILITY_VALUES } from '@/lib/disability';
-import { bodyTooLarge, cleanAllowedArray, cleanStringArray, cleanText, cleanUuidArray, jsonError, jsonOk, safeInteger } from '@/lib/http';
+import { bodyReadError, cleanAllowedArray, cleanStringArray, cleanText, cleanUuidArray, jsonError, jsonOk, readLimitedJsonObject, safeInteger } from '@/lib/http';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { getProfilePhotoUrl } from '@/lib/profile-photo';
 import { GENDER_OPTIONS } from '@/lib/profile-options';
@@ -14,7 +14,7 @@ function isSetupError(error: { code?: string; message?: string } | null | undefi
 }
 
 export async function GET(request: Request) {
-  const limited = checkRateLimit(request, 'profile-read', { limit: 60, windowMs: 60 * 1000 });
+  const limited = await checkRateLimit(request, 'profile-read', { limit: 60, windowMs: 60 * 1000 });
   if (!limited.allowed) return rateLimitResponse(limited.retryAfterSeconds);
   try {
     const { supabase, user } = await getAuthenticatedContext();
@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     ]);
     if (isSetupError(profileError) || isSetupError(skillsError)) return jsonError(setupError, 500);
     if (profileError || skillsError) return jsonError('Unable to load your profile.', 500);
-    const safeProfile = profile ? { ...profile, profile_photo_url: await getProfilePhotoUrl(profile.profile_photo_path) } : profile;
+    const safeProfile = profile ? { ...profile, profile_photo_url: await getProfilePhotoUrl(profile.profile_photo_path, user.id) } : profile;
     return jsonOk({ profile: safeProfile, skills: profileSkills ?? [] });
   } catch {
     return jsonError('Unable to load your profile.', 500);
@@ -34,13 +34,14 @@ export async function GET(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  if (bodyTooLarge(request, 64 * 1024)) return jsonError('Request is too large.', 413);
-  const limited = checkRateLimit(request, 'profile-write', { limit: 20, windowMs: 10 * 60 * 1000 });
+  const limited = await checkRateLimit(request, 'profile-write', { limit: 20, windowMs: 10 * 60 * 1000 });
   if (!limited.allowed) return rateLimitResponse(limited.retryAfterSeconds);
+  const parsedBody = await readLimitedJsonObject(request, 64 * 1024);
+  if (!parsedBody.ok) return bodyReadError(parsedBody);
   try {
     const { supabase, user } = await getAuthenticatedContext();
     if (!user) return jsonError('Authentication required.', 401);
-    const body = await request.json() as Record<string, unknown>;
+    const body = parsedBody.value;
     const existing = await supabase.from('profiles').select('role, gender').eq('id', user.id).maybeSingle();
     if (isSetupError(existing.error)) return jsonError(setupError, 500);
     if (existing.error || !existing.data) return jsonError('Profile not found.', 404);
@@ -137,7 +138,7 @@ export async function PATCH(request: Request) {
       if (insertError) return jsonError('Unable to save selected skills.', 500);
     }
 
-    const safeProfile = profile ? { ...profile, profile_photo_url: await getProfilePhotoUrl(profile.profile_photo_path) } : profile;
+    const safeProfile = profile ? { ...profile, profile_photo_url: await getProfilePhotoUrl(profile.profile_photo_path, user.id) } : profile;
     return jsonOk({ profile: safeProfile, skills: selectedIds });
   } catch {
     return jsonError('Unable to save your profile.', 500);

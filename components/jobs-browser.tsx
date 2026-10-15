@@ -4,6 +4,7 @@ import { BriefcaseBusiness, CheckCircle2, Clock3, MapPin, Search, SlidersHorizon
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { JobListSkeleton } from '@/components/skeleton';
 import { StatusPill } from '@/components/status-pill';
+import { EmployerVerificationBadge } from '@/components/employer-verification-badge';
 import type { Job, UserRole } from '@/lib/types';
 
 function one<T>(value: T | T[] | null | undefined) { return Array.isArray(value) ? value[0] : value; }
@@ -33,7 +34,7 @@ function JobCard({ job, canApply, onApply }: { job: Job; canApply: boolean; onAp
   }
 
   return <article className={`job-card ${job.fit_score && job.fit_score >= 75 ? 'featured' : ''}`}>
-    <div className="job-card-header"><div><h2>{job.title}</h2><p className="job-company">{job.organization_name ?? 'PWD Connect employer'}</p><p>{job.description}</p></div>{typeof job.fit_score === 'number' ? <div className="fit-score large" aria-label={`${job.fit_score} percent fit`}>{job.fit_score}%</div> : null}</div>
+    <div className="job-card-header"><div><h2>{job.title}</h2><p className="job-company">{job.organization_name ?? 'PWD Connect employer'}</p><EmployerVerificationBadge approvedAt={job.employer_verified_at} /><p>{job.description}</p></div>{typeof job.fit_score === 'number' ? <div className="fit-score large" aria-label={`${job.fit_score} percent fit`}>{job.fit_score}%</div> : null}</div>
     <div className="job-tags">{skills.map((skill) => skill ? <span className="tag" key={skill.id}>{skill.name}</span> : null)}{job.verified_skills?.length ? <span className="tag verified"><CheckCircle2 size={13} aria-hidden="true" /> Verified: {job.verified_skills.join(', ')}</span> : null}{job.missing_skills?.length ? <span className="tag">Still needed: {job.missing_skills.join(', ')}</span> : null}</div>
     {salary || job.accommodations ? <div className="job-accessibility">{salary ? <strong>{salary} <span className="muted">/ month</span></strong> : null}{job.accommodations ? <details><summary>Accessibility details</summary><p>{job.accommodations}</p></details> : null}</div> : null}
     {job.match_reason ? <p className="notice"><strong>Why this match:</strong> {job.match_reason}</p> : null}

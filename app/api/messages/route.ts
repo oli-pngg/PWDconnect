@@ -27,7 +27,12 @@ export async function GET(request: Request) {
     if (!user) return jsonError('Authentication required.', 401);
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
     if (profile?.role !== 'candidate' && profile?.role !== 'employer') return jsonError('Only candidate and employer accounts can use messages.', 403);
-    const limited = checkRateLimit(request, 'messages-read', { limit: 60, windowMs: 60 * 1000 }, user.id);
+    if (profile.role === 'employer') {
+      const { data: verification, error: verificationError } = await supabase.from('employer_verifications').select('status').eq('employer_id', user.id).maybeSingle();
+      if (verificationError || !verification) return jsonError('Employer verification setup is missing. Apply migration 018_employer_verification.sql.', 503);
+      if (verification.status !== 'approved') return jsonError('Applicant conversations are available after employer verification is approved.', 403);
+    }
+    const limited = await checkRateLimit(request, 'messages-read', { limit: 60, windowMs: 60 * 1000 }, user.id);
     if (!limited.allowed) return rateLimitResponse(limited.retryAfterSeconds);
 
     const admin = createSupabaseAdminClient();
